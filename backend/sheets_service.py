@@ -17,18 +17,16 @@ class SheetsService:
         """Connect to Google Sheets using API key (read-only access for public sheets)"""
         try:
             # For public sheets with API key
-            from google.auth.transport.requests import Request
-            from google.oauth2 import service_account
             import gspread
             
             # Use gspread with API key for public sheets
-            # Note: This requires the sheet to be publicly accessible
+            # Note: This requires the sheet to be publicly accessible with "Anyone with the link can view"
             self.gc = gspread.api_key(self.api_key)
             self.spreadsheet = self.gc.open_by_key(self.sheet_id)
-            logger.info(f"Connected to Google Sheets: {self.sheet_id}")
+            logger.info(f"✓ Connected to Google Sheets: {self.sheet_id}")
             return True
         except Exception as e:
-            logger.error(f"Failed to connect to Google Sheets: {e}")
+            logger.warning(f"⚠ Google Sheets connection failed: {e}. Make sure the sheet is set to 'Anyone with the link can view'. Using demo data for now.")
             return False
     
     async def get_worksheet(self, sheet_name: str):
