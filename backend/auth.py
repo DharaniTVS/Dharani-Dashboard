@@ -9,8 +9,15 @@ from motor.motor_asyncio import AsyncIOMotorClient
 JWT_SECRET = os.getenv("JWT_SECRET", "dharani-tvs-secret-key-2025")
 JWT_ALGORITHM = "HS256"
 
-# Get db from main app
-from server import db
+# Get db connection - will be initialized in server.py
+_db = None
+
+def get_db():
+    global _db
+    if _db is None:
+        from server import db as server_db
+        _db = server_db
+    return _db
 
 def create_access_token(data: dict, expires_delta: timedelta = timedelta(days=30)):
     to_encode = data.copy()
