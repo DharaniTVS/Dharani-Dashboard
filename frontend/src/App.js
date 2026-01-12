@@ -1,50 +1,97 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import axios from 'axios';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard';
+import Analytics from './components/Analytics';
+import AIChat from './components/AIChat';
+import Commitments from './components/Commitments';
+import Plans from './components/Plans';
+import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+// Axios interceptor for auth
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API}/auth/me`);
+      setUser(response.data);
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('token');
+    }
+    setLoading(false);
+  };
+
+  const handleLogin = (userData, token) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+          <Route
+            path="/login"
+            element={!user ? <Login onLogin={handleLogin} /> : <Navigate to="/" />}
+          />
+          <Route
+            path="/"
+            element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/analytics"
+            element={user ? <Analytics user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/chat"
+            element={user ? <AIChat user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/commitments"
+            element={user ? <Commitments user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/plans"
+            element={user ? <Plans user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
         </Routes>
       </BrowserRouter>
     </div>
