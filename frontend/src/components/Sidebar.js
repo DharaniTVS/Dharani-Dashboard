@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight, Building2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const Sidebar = ({ user, onLogout }) => {
