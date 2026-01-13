@@ -17,7 +17,7 @@ const Login = () => {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-12 flex-col justify-between">
         <div>
           <h1 className="text-4xl font-bold text-white mb-2">Dharani TVS</h1>
-          <p className="text-xl text-indigo-100">Business AI Manager</p>
+          <p className="text-xl text-indigo-100">AI Business Manager</p>
         </div>
         <div className="space-y-6">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
