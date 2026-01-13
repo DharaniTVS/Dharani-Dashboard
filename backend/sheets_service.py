@@ -67,32 +67,32 @@ class SheetsService:
     
     async def read_sheet(self, sheet_name: str, gid: int = None) -> List[Dict[str, Any]]:
         """Read all data from a sheet and return as list of dicts"""
-        try:
-            if not self.connected:
-                return []
-            
-            # Use provided GID or lookup from sheet name
-            sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
-            
-            # Use requests library for better Google redirect handling
-            import requests
-            url = f"{self.base_url}?format=csv&gid={sheet_gid}"
-            response = requests.get(url, timeout=15, allow_redirects=True)
-            
-            if response.status_code == 200:
-                # Parse CSV
-                csv_data = response.text
-                reader = csv.DictReader(io.StringIO(csv_data))
-                result = [row for row in reader]
+        import asyncio
+        
+        def sync_read():
+            try:
+                if not self.connected:
+                    return []
                 
-                logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
-                return result
-            else:
-                logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
+                sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
+                
+                import requests
+                url = f"{self.base_url}?format=csv&gid={sheet_gid}"
+                response = requests.get(url, timeout=15, allow_redirects=True)
+                
+                if response.status_code == 200:
+                    reader = csv.DictReader(io.StringIO(response.text))
+                    result = [row for row in reader]
+                    logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
+                    return result
+                else:
+                    logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
+                    return []
+            except Exception as e:
+                logger.error(f"Failed to read '{sheet_name}': {e}")
                 return []
-        except Exception as e:
-            logger.error(f"Failed to read '{sheet_name}': {e}")
-            return []
+        
+        return await asyncio.to_thread(sync_read)
     
     async def write_sheet(self, sheet_name: str, data: List[List[Any]], range_name: str = None):
         """Write data to a sheet - Note: This requires write permissions"""
