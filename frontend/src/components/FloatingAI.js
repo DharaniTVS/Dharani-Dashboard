@@ -62,10 +62,10 @@ const FloatingAI = () => {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className=\"fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50\"
-        data-testid=\"ai-assistant-button\"
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center z-50"
+        data-testid="ai-assistant-button"
       >
-        <Sparkles className=\"w-6 h-6 text-white\" />
+        <Sparkles className="w-6 h-6 text-white" />
       </button>
     );
   }
