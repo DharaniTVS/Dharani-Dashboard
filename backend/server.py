@@ -466,10 +466,22 @@ async def root():
 
 app.include_router(api_router)
 
+cors_origins = os.environ.get('CORS_ORIGINS', '*')
+if cors_origins == '*':
+    # Get the frontend URL from environment or use defaults
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://sales-insights-86.preview.emergentagent.com')
+    cors_origins_list = [
+        frontend_url,
+        'http://localhost:3000',
+        'https://sales-insights-86.preview.emergentagent.com'
+    ]
+else:
+    cors_origins_list = [origin.strip() for origin in cors_origins.split(',')]
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=cors_origins_list,
     allow_methods=["*"],
     allow_headers=["*"],
 )
