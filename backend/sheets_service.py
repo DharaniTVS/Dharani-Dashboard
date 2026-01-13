@@ -86,35 +86,13 @@ class SheetsService:
             return []
     
     async def write_sheet(self, sheet_name: str, data: List[List[Any]], range_name: str = None):
-        """Write data to a sheet"""
-        try:
-            if not self.connected:
-                return False
-            
-            async with httpx.AsyncClient() as client:
-                range_spec = f"{sheet_name}!{range_name}" if range_name else f"{sheet_name}!A1"
-                url = f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}/values/{range_spec}:append"
-                params = {
-                    "key": self.api_key,
-                    "valueInputOption": "RAW"
-                }
-                body = {"values": data}
-                
-                response = await client.post(url, params=params, json=body, timeout=10.0)
-                
-                if response.status_code in [200, 201]:
-                    logger.info(f"✓ Wrote data to sheet '{sheet_name}'")
-                    return True
-                else:
-                    logger.error(f"Failed to write to sheet {sheet_name}: HTTP {response.status_code}")
-                    return False
-        except Exception as e:
-            logger.error(f"Failed to write to sheet {sheet_name}: {e}")
-            return False
+        """Write data to a sheet - Note: This requires write permissions"""
+        logger.warning(f"Write operations not supported with CSV export method for sheet {sheet_name}")
+        return False
     
     async def get_sales_data(self) -> List[Dict[str, Any]]:
-        """Get sales master data"""
-        return await self.read_sheet("Sales Master")
+        """Get sales master data - using first sheet (gid=0)"""
+        return await self.read_sheet("Sales Master", gid=0)
     
     async def get_leads_data(self) -> List[Dict[str, Any]]:
         """Get leads data"""
