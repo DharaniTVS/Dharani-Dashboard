@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Sidebar from './Sidebar';
+import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Wrench, Clock, CheckCircle, AlertCircle, User, TrendingUp } from 'lucide-react';
