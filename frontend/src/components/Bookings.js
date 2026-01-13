@@ -5,105 +5,85 @@ import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Search, Filter, Download, Plus, Calendar } from 'lucide-react';
+import { Search, Filter, Download, ShoppingCart } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-const Sales = ({ user, onLogout }) => {
+const Bookings = ({ user, onLogout }) => {
   const [salesData, setSalesData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBranch, setSelectedBranch] = useState('all');
+  const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedExecutive, setSelectedExecutive] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [branches, setBranches] = useState([]);
   const [executives, setExecutives] = useState([]);
 
   useEffect(() => {
-    fetchData();
-    fetchFilters();
-    
-    // Listen for branch changes
+    const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
+    setSelectedBranch(savedBranch);
+
     const handleBranchChange = (event) => {
       setSelectedBranch(event.detail);
     };
-    
+
     window.addEventListener('branchChanged', handleBranchChange);
-    
-    // Initialize from localStorage
-    const savedBranch = localStorage.getItem('selectedBranch');
-    if (savedBranch) {
-      setSelectedBranch(savedBranch);
-    }
-    
-    return () => {
-      window.removeEventListener('branchChanged', handleBranchChange);
-    };
+    return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
 
   useEffect(() => {
+    if (selectedBranch) {
+      fetchData();
+      fetchExecutives();
+    }
+  }, [selectedBranch]);
+
+  useEffect(() => {
     applyFilters();
-  }, [searchTerm, selectedBranch, selectedExecutive, startDate, endDate, salesData]);
+  }, [searchTerm, selectedExecutive, salesData]);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
-      const response = await axios.get(`${API}/sheets/sales-data`);
+      const response = await axios.get(`${API}/sheets/sales-data`, {
+        params: { branch: selectedBranch }
+      });
+      // For bookings, we show data (in real scenario, filter by booking status)
       setSalesData(response.data.data || []);
       setFilteredData(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch sales data:', error);
+      console.error('Failed to fetch bookings:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchFilters = async () => {
+  const fetchExecutives = async () => {
     try {
-      const [branchesRes, executivesRes] = await Promise.all([
-        axios.get(`${API}/sheets/branches`),
-        axios.get(`${API}/sheets/executives`)
-      ]);
-      setBranches(branchesRes.data.branches || []);
-      setExecutives(executivesRes.data.executives || []);
+      const response = await axios.get(`${API}/sheets/executives`, {
+        params: { branch: selectedBranch }
+      });
+      setExecutives(response.data.executives || []);
     } catch (error) {
-      console.error('Failed to fetch filters:', error);
+      console.error('Failed to fetch executives:', error);
     }
   };
 
   const applyFilters = () => {
     let filtered = [...salesData];
 
-    // Search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(record => 
         (record['Customer Name'] || '').toLowerCase().includes(search) ||
         (record['Mobile No'] || '').toLowerCase().includes(search) ||
-        (record['Vehicle Model'] || '').toLowerCase().includes(search) ||
-        (record['Customer ID'] || '').toLowerCase().includes(search)
+        (record['Vehicle Model'] || '').toLowerCase().includes(search)
       );
     }
 
-    // Branch filter
-    if (selectedBranch && selectedBranch !== 'all') {
-      filtered = filtered.filter(record => record['Location'] === selectedBranch);
-    }
-
-    // Executive filter
     if (selectedExecutive && selectedExecutive !== 'all') {
       filtered = filtered.filter(record => record['Executive Name'] === selectedExecutive);
-    }
-
-    // Date filter
-    if (startDate && endDate) {
-      filtered = filtered.filter(record => {
-        const saleDate = record['Sales Date'] || '';
-        return saleDate >= startDate && saleDate <= endDate;
-      });
     }
 
     setFilteredData(filtered);
@@ -111,14 +91,11 @@ const Sales = ({ user, onLogout }) => {
 
   const resetFilters = () => {
     setSearchTerm('');
-    setSelectedBranch('all');
     setSelectedExecutive('all');
-    setStartDate('');
-    setEndDate('');
   };
 
   const exportToCSV = () => {
-    const headers = ['Customer ID', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Executive Name', 'Location', 'Sales Date', 'Enquiry Type'];
+    const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name', 'Downpayment (₹)', 'Cash/HP', 'Financier Name'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
@@ -130,51 +107,47 @@ const Sales = ({ user, onLogout }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sales-data-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `bookings-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
   return (
-    <div className="flex bg-gray-50" data-testid="bookings-page">
+    <div className="flex bg-gray-50 min-h-screen" data-testid="bookings-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-8 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Bookings Management</h1>
-              <p className="text-sm text-gray-600 mt-1">View and manage customer bookings</p>
-            </div>
             <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                className="gap-2"
-                onClick={exportToCSV}
-                data-testid="export-button"
-              >
-                <Download className="w-4 h-4" />
-                Export CSV
-              </Button>
-              <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-                <Plus className="w-4 h-4" />
-                New Enquiry
-              </Button>
+              <ShoppingCart className="w-8 h-8 text-indigo-600" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Bookings - {selectedBranch}</h1>
+                <p className="text-sm text-gray-600 mt-1">View vehicle bookings from {selectedBranch} branch</p>
+              </div>
             </div>
+            <Button 
+              variant="outline" 
+              className="gap-2 text-gray-700 border-gray-300 hover:bg-gray-100"
+              onClick={exportToCSV}
+              data-testid="export-button"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </Button>
           </div>
         </div>
 
         <div className="p-8">
-          {/* Filters Section */}
+          {/* Filters */}
           <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div className="flex items-center gap-2 mb-4">
               <Filter className="w-5 h-5 text-gray-600" />
               <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Search */}
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -183,84 +156,39 @@ const Sales = ({ user, onLogout }) => {
                     placeholder="Search by name, phone, model..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 bg-white text-gray-900 border-gray-300"
                     data-testid="search-input"
                   />
                 </div>
               </div>
 
-              {/* Branch Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger data-testid="branch-filter">
-                    <SelectValue placeholder="All Branches" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Branches</SelectItem>
-                    {branches.map(branch => (
-                      <SelectItem key={branch} value={branch}>{branch}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Executive Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Executive</label>
                 <Select value={selectedExecutive} onValueChange={setSelectedExecutive}>
-                  <SelectTrigger data-testid="executive-filter">
+                  <SelectTrigger className="bg-white text-gray-900 border-gray-300">
                     <SelectValue placeholder="All Executives" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Executives</SelectItem>
-                    {executives.map(executive => (
-                      <SelectItem key={executive} value={executive}>{executive}</SelectItem>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">All Executives</SelectItem>
+                    {executives.map(exec => (
+                      <SelectItem key={exec} value={exec} className="text-gray-900 hover:bg-gray-100">{exec}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Date Range */}
-              <div className="flex items-end gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={resetFilters}
-                  className="w-full"
-                  data-testid="reset-filters"
-                >
-                  Reset Filters
-                </Button>
-              </div>
-            </div>
-
-            {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  data-testid="start-date"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
-                <Input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  data-testid="end-date"
-                />
               </div>
             </div>
 
             <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> of{' '}
-                <span className="font-semibold text-gray-900">{salesData.length}</span> records
+                Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> bookings
               </p>
+              <Button 
+                variant="outline" 
+                onClick={resetFilters}
+                className="text-gray-700 border-gray-300 hover:bg-gray-100"
+              >
+                Reset Filters
+              </Button>
             </div>
           </Card>
 
@@ -268,21 +196,25 @@ const Sales = ({ user, onLogout }) => {
           <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               {loading ? (
-                <div className="p-8 text-center text-gray-600">Loading sales data...</div>
+                <div className="p-8 text-center text-gray-600">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                  Loading bookings...
+                </div>
               ) : filteredData.length === 0 ? (
-                <div className="p-8 text-center text-gray-600">No records found</div>
+                <div className="p-8 text-center text-gray-600">No bookings found</div>
               ) : (
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer ID</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Date</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer Name</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Mobile No</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Vehicle Model</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Category</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Executive</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Branch</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Sales Date</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Type</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Downpayment</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Payment</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Financier</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -290,24 +222,33 @@ const Sales = ({ user, onLogout }) => {
                       <tr 
                         key={index} 
                         className="hover:bg-gray-50 transition-colors"
-                        data-testid={`sales-row-${index}`}
+                        data-testid={`booking-row-${index}`}
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Customer ID'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900">{record['Sales Date'] || '-'}</td>
                         <td className="py-4 px-6 text-sm font-medium text-gray-900">{record['Customer Name'] || '-'}</td>
                         <td className="py-4 px-6 text-sm text-gray-600">{record['Mobile No'] || '-'}</td>
                         <td className="py-4 px-6 text-sm text-gray-900">{record['Vehicle Model'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Location'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Sales Date'] || '-'}</td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Enquiry Type'] === 'Hot' ? 'bg-red-100 text-red-700' :
-                            record['Enquiry Type'] === 'Warm' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-blue-100 text-blue-700'
+                            record['Category'] === 'Sports' ? 'bg-red-100 text-red-700' :
+                            record['Category'] === 'Scooter' ? 'bg-blue-100 text-blue-700' :
+                            record['Category'] === 'EV' ? 'bg-green-100 text-green-700' :
+                            record['Category'] === 'Moped' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-gray-100 text-gray-700'
                           }`}>
-                            {record['Enquiry Type'] || 'General'}
+                            {record['Category'] || '-'}
                           </span>
                         </td>
+                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive Name'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900 font-medium">₹{record['Downpayment (₹)'] || '-'}</td>
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                          }`}>
+                            {record['Cash/HP'] || '-'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-gray-600">{record['Financier Name'] || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -321,4 +262,4 @@ const Sales = ({ user, onLogout }) => {
   );
 };
 
-export default Sales;
+export default Bookings;
