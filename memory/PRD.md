@@ -73,6 +73,23 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 
 ## What's Been Implemented
 
+### January 14, 2026
+
+#### New Features Added
+- ✅ **Global Dashboard** - All branches comparison with:
+  - Total Revenue, Units Sold, AOV across all 5 branches
+  - Revenue by Branch bar chart
+  - Units Sold by Branch horizontal bar chart  
+  - Category Distribution donut chart
+  - Top Executives across all branches
+- ✅ **Auto-sync every 30 seconds** - Live data refresh with indicator
+- ✅ **Date filters** on Global Dashboard with date range picker
+- ✅ **PDF Export** - jsPDF integration with auto-table
+- ✅ **CSV Export** - On all pages
+- ✅ **Dark Mode CSS** - Full dark theme support with proper variables
+- ✅ **Text selection fix** - Proper selection highlight color
+- ✅ **AI Markdown rendering** - ReactMarkdown with proper formatting
+
 ### December 2025 - January 2026
 
 #### Backend (FastAPI)
