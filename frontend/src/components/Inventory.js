@@ -4,163 +4,206 @@ import Sidebar from './Sidebar';
 import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
-import { Package, AlertTriangle, TrendingUp, ShoppingCart } from 'lucide-react';
+import { Input } from './ui/input';
+import { Package, Search, Download, RefreshCw } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const Inventory = ({ user, onLogout }) => {
-  const [inventory, setInventory] = useState([]);
+  const [stockData, setStockData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBranch, setSelectedBranch] = useState('');
 
   useEffect(() => {
-    fetchInventory();
+    const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
+    setSelectedBranch(savedBranch);
+
+    const handleBranchChange = (event) => {
+      setSelectedBranch(event.detail);
+    };
+
+    window.addEventListener('branchChanged', handleBranchChange);
+    return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
 
-  const fetchInventory = async () => {
+  useEffect(() => {
+    if (selectedBranch) {
+      fetchStockData();
+    }
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, stockData]);
+
+  const fetchStockData = async () => {
+    setLoading(true);
     try {
-      // For now using demo data until we have inventory endpoint
-      setInventory([
-        { item_id: '1', item_name: 'Engine Oil 10W40', quantity: 45, min_stock: 20, branch: 'Bhavani', price: 350 },
-        { item_id: '2', item_name: 'Air Filter', quantity: 12, min_stock: 15, branch: 'Bhavani', price: 250 },
-        { item_id: '3', item_name: 'Brake Pads', quantity: 8, min_stock: 10, branch: 'Kavindapadi', price: 800 },
-        { item_id: '4', item_name: 'Spark Plug', quantity: 35, min_stock: 25, branch: 'Anthiyur', price: 150 },
-        { item_id: '5', item_name: 'Chain Lubricant', quantity: 5, min_stock: 15, branch: 'Kumarapalayam', price: 180 },
-        { item_id: '6', item_name: 'Coolant', quantity: 28, min_stock: 20, branch: 'Ammapettai', price: 200 }
-      ]);
+      const response = await axios.get(`${API}/sheets/stock-data`, {
+        params: { branch: selectedBranch }
+      });
+      setStockData(response.data.data || []);
+      setFilteredData(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch inventory:', error);
+      console.error('Failed to fetch stock data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, color, subtitle }) => (
-    <Card className="p-6 bg-white rounded-xl border border-gray-200 card-hover">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-          <h3 className="text-3xl font-bold text-gray-900 mb-1">{value}</h3>
-          {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
-        </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-      </div>
-    </Card>
-  );
+  const applyFilters = () => {
+    let filtered = [...stockData];
 
-  const lowStockCount = inventory.filter(item => item.quantity < item.min_stock).length;
-  const totalValue = inventory.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(record => 
+        Object.values(record).some(value => 
+          String(value).toLowerCase().includes(search)
+        )
+      );
+    }
+
+    setFilteredData(filtered);
+  };
+
+  const exportToCSV = () => {
+    if (filteredData.length === 0) return;
+
+    const headers = Object.keys(filteredData[0] || {});
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => 
+        headers.map(header => `"${row[header] || ''}"`).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventory-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  // Get column headers dynamically from data
+  const getColumns = () => {
+    if (filteredData.length === 0) return [];
+    return Object.keys(filteredData[0]).filter(key => key !== 'Branch');
+  };
 
   return (
-    <div className="flex bg-gray-50" data-testid="inventory-page">
+    <div className="flex bg-gray-50 min-h-screen" data-testid="inventory-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-8 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
-              <p className="text-sm text-gray-600 mt-1">Track spare parts and inventory across all branches</p>
+            <div className="flex items-center gap-3">
+              <Package className="w-8 h-8 text-indigo-600" />
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Inventory - {selectedBranch}</h1>
+                <p className="text-sm text-gray-600 mt-1">View stock data from {selectedBranch} branch</p>
+              </div>
             </div>
-            <Button className="bg-indigo-600 hover:bg-indigo-700">
-              Add Item
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline" 
+                className="gap-2 text-gray-700 border-gray-300 hover:bg-gray-100"
+                onClick={fetchStockData}
+                data-testid="refresh-button"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh
+              </Button>
+              {filteredData.length > 0 && (
+                <Button 
+                  variant="outline" 
+                  className="gap-2 text-gray-700 border-gray-300 hover:bg-gray-100"
+                  onClick={exportToCSV}
+                  data-testid="export-button"
+                >
+                  <Download className="w-4 h-4" />
+                  Export CSV
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="p-8">
-          {/* KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard
-              title="Total Items"
-              value={inventory.length}
-              icon={Package}
-              color="bg-gradient-to-br from-blue-500 to-blue-600"
-              subtitle="Unique products"
-            />
-            <StatCard
-              title="Low Stock Alert"
-              value={lowStockCount}
-              icon={AlertTriangle}
-              color="bg-gradient-to-br from-red-500 to-red-600"
-              subtitle="Needs reorder"
-            />
-            <StatCard
-              title="Total Value"
-              value={`₹${(totalValue / 1000).toFixed(1)}K`}
-              icon={TrendingUp}
-              color="bg-gradient-to-br from-green-500 to-green-600"
-              subtitle="Inventory worth"
-            />
-            <StatCard
-              title="Active Branches"
-              value="5"
-              icon={ShoppingCart}
-              color="bg-gradient-to-br from-purple-500 to-purple-600"
-              subtitle="Stocking items"
-            />
-          </div>
-
-          {/* Inventory Table */}
-          <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-900">Spare Parts Inventory</h2>
-              <p className="text-sm text-gray-600 mt-1">Current stock levels across all branches</p>
+          {/* Search */}
+          <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  type="text"
+                  placeholder="Search inventory..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 bg-white text-gray-900 border-gray-300"
+                  data-testid="search-input"
+                />
+              </div>
+              <p className="text-sm text-gray-600">
+                Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> items
+              </p>
             </div>
-            {loading ? (
-              <div className="p-6 text-gray-600">Loading...</div>
-            ) : (
-              <div className="overflow-x-auto">
+          </Card>
+
+          {/* Data Table */}
+          <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              {loading ? (
+                <div className="p-8 text-center text-gray-600">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                  Loading inventory data...
+                </div>
+              ) : filteredData.length === 0 ? (
+                <div className="p-8 text-center text-gray-600">
+                  <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <p className="font-medium text-gray-900 mb-2">No inventory data found</p>
+                  <p className="text-sm">The Stock sheet for {selectedBranch} branch may be empty or not configured.</p>
+                </div>
+              ) : (
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Item Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Branch</th>
-                      <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Quantity</th>
-                      <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Min Stock</th>
-                      <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Price (₹)</th>
-                      <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Status</th>
+                      {getColumns().map((column, index) => (
+                        <th 
+                          key={index}
+                          className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6"
+                        >
+                          {column}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {inventory.map((item, index) => (
-                      <tr
-                        key={item.item_id}
+                    {filteredData.map((record, rowIndex) => (
+                      <tr 
+                        key={rowIndex} 
                         className="hover:bg-gray-50 transition-colors"
-                        data-testid={`inventory-row-${index}`}
+                        data-testid={`inventory-row-${rowIndex}`}
                       >
-                        <td className="py-4 px-6">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                              <Package className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <span className="text-sm font-medium text-gray-900">{item.item_name}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{item.branch}</td>
-                        <td className="py-4 px-6 text-sm font-semibold text-gray-900 text-right">{item.quantity}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600 text-right">{item.min_stock}</td>
-                        <td className="py-4 px-6 text-sm font-semibold text-gray-900 text-right">₹{item.price}</td>
-                        <td className="py-4 px-6 text-right">
-                          <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${
-                            item.quantity < item.min_stock
-                              ? 'bg-red-100 text-red-700'
-                              : item.quantity < item.min_stock * 1.5
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}>
-                            {item.quantity < item.min_stock ? 'Low Stock' : item.quantity < item.min_stock * 1.5 ? 'Moderate' : 'In Stock'}
-                          </span>
-                        </td>
+                        {getColumns().map((column, colIndex) => (
+                          <td 
+                            key={colIndex}
+                            className="py-4 px-6 text-sm text-gray-900"
+                          >
+                            {record[column] || '-'}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              )}
+            </div>
           </Card>
         </div>
       </div>
