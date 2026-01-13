@@ -46,6 +46,13 @@ const Settings = ({ user, onLogout }) => {
       if (data.ai_api_key) setApiKey(data.ai_api_key);
       if (data.ai_provider) setAiProvider(data.ai_provider);
       if (data.ai_model) setAiModel(data.ai_model);
+      
+      // Apply dark mode on load
+      if (data.dark_mode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
     } finally {
