@@ -79,9 +79,10 @@ class SheetsService:
             sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
             
             # Use Google Sheets CSV export
-            async with httpx.AsyncClient(follow_redirects=True) as client:
+            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
+            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, limits=limits) as client:
                 url = f"{self.base_url}?format=csv&gid={sheet_gid}"
-                response = await client.get(url, timeout=10.0)
+                response = await client.get(url)
                 
                 if response.status_code == 200:
                     # Parse CSV
@@ -89,13 +90,13 @@ class SheetsService:
                     reader = csv.DictReader(io.StringIO(csv_data))
                     result = [row for row in reader]
                     
-                    logger.info(f"✓ Read {len(result)} rows from sheet '{sheet_name}' (gid={sheet_gid})")
+                    logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
                     return result
                 else:
-                    logger.error(f"Failed to read sheet {sheet_name}: HTTP {response.status_code}")
+                    logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
                     return []
         except Exception as e:
-            logger.error(f"Failed to read sheet {sheet_name}: {e}")
+            logger.error(f"Failed to read '{sheet_name}': {e}")
             return []
     
     async def write_sheet(self, sheet_name: str, data: List[List[Any]], range_name: str = None):
