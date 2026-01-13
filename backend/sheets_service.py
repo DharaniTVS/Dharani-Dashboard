@@ -104,6 +104,11 @@ class SheetsService:
     
     async def get_sales_data(self) -> List[Dict[str, Any]]:
         """Get sales master data - using first sheet (gid=0)"""
+        # Try to connect if not connected
+        if not self.connected:
+            await self.connect()
+        
+        # If still not connected, try to read anyway
         return await self.read_sheet("Sales Master", gid=0)
     
     async def get_leads_data(self) -> List[Dict[str, Any]]:
