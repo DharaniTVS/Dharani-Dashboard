@@ -135,7 +135,7 @@ const Sales = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="flex bg-gray-50" data-testid="sales-page">
+    <div className="flex bg-gray-50" data-testid="bookings-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
@@ -143,8 +143,8 @@ const Sales = ({ user, onLogout }) => {
         <div className="bg-white border-b border-gray-200 px-8 py-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sales Management</h1>
-              <p className="text-sm text-gray-600 mt-1">View and manage customer enquiries, bookings, and sales</p>
+              <h1 className="text-2xl font-bold text-gray-900">Bookings Management</h1>
+              <p className="text-sm text-gray-600 mt-1">View and manage customer bookings</p>
             </div>
             <div className="flex items-center gap-3">
               <Button 
