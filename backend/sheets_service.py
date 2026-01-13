@@ -91,16 +91,26 @@ class SheetsService:
     async def write_sheet(self, sheet_name: str, data: List[List[Any]], range_name: str = None):
         """Write data to a sheet"""
         try:
-            worksheet = await self.get_worksheet(sheet_name)
-            if not worksheet:
+            if not self.connected:
                 return False
             
-            if range_name:
-                worksheet.update(range_name, data)
-            else:
-                worksheet.append_rows(data)
-            
-            return True
+            async with httpx.AsyncClient() as client:
+                range_spec = f"{sheet_name}!{range_name}" if range_name else f"{sheet_name}!A1"
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}/values/{range_spec}:append"
+                params = {
+                    "key": self.api_key,
+                    "valueInputOption": "RAW"
+                }
+                body = {"values": data}
+                
+                response = await client.post(url, params=params, json=body, timeout=10.0)
+                
+                if response.status_code in [200, 201]:
+                    logger.info(f"✓ Wrote data to sheet '{sheet_name}'")
+                    return True
+                else:
+                    logger.error(f"Failed to write to sheet {sheet_name}: HTTP {response.status_code}")
+                    return False
         except Exception as e:
             logger.error(f"Failed to write to sheet {sheet_name}: {e}")
             return False
