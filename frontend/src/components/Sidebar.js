@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, Check, ChevronDown } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
-  const [selectedBranches, setSelectedBranches] = useState(['Bhavani']);
-  const [isOpen, setIsOpen] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState('Bhavani');
+  const [isSalesOpen, setIsSalesOpen] = useState(true);
 
   const branches = [
     'Bhavani',
@@ -19,31 +19,20 @@ const Sidebar = ({ user, onLogout }) => {
 
   const isActive = (path) => location.pathname === path;
 
-  const navItems = [
-    { path: '/', label: 'Sales', icon: ShoppingCart, section: 'main' },
-    { path: '/service', label: 'Service', icon: Wrench, section: 'main' },
-    { path: '/inventory', label: 'Inventory', icon: Package, section: 'main' }
-  ];
-
-  const toggleBranch = (branch) => {
-    if (selectedBranches.includes(branch)) {
-      const filtered = selectedBranches.filter(b => b !== branch);
-      setSelectedBranches(filtered.length === 0 ? [branch] : filtered);
-    } else {
-      setSelectedBranches([...selectedBranches, branch]);
-    }
+  const handleBranchChange = (branch) => {
+    setSelectedBranch(branch);
+    // Store in localStorage so it persists across pages
+    localStorage.setItem('selectedBranch', branch);
+    // Trigger a custom event so other components can react
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
   };
-
-  const displayText = selectedBranches.length === 1 
-    ? selectedBranches[0]
-    : `${selectedBranches.length} Branches`;
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col" data-testid="sidebar">
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <h2 className="text-xl font-bold text-gray-900">Dharani TVS</h2>
-        <p className="text-sm text-indigo-600 font-medium">Business AI Manager</p>
+        <p className="text-sm text-indigo-600 font-medium">Business Manager</p>
       </div>
 
       {/* User Info */}
@@ -61,42 +50,17 @@ const Sidebar = ({ user, onLogout }) => {
 
       {/* Branch Selector */}
       <div className="mx-4 mt-4">
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <Button 
-              variant="outline" 
-              className="w-full justify-between bg-white hover:bg-gray-50 border-gray-200"
-              data-testid="branch-selector"
-            >
-              <span className="text-sm font-medium text-gray-700">{displayText}</span>
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-3" align="start">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Select Branches</p>
-              {branches.map((branch) => (
-                <button
-                  key={branch}
-                  onClick={() => toggleBranch(branch)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  data-testid={`branch-option-${branch.toLowerCase()}`}
-                >
-                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                    selectedBranches.includes(branch) 
-                      ? 'bg-indigo-600 border-indigo-600' 
-                      : 'border-gray-300'
-                  }`}>
-                    {selectedBranches.includes(branch) && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </div>
-                  <span className="text-sm text-gray-700">{branch}</span>
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
+        <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Branch</label>
+        <Select value={selectedBranch} onValueChange={handleBranchChange}>
+          <SelectTrigger className="bg-white" data-testid="branch-selector">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {branches.map(branch => (
+              <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Navigation */}
@@ -104,27 +68,81 @@ const Sidebar = ({ user, onLogout }) => {
         <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
           General
         </div>
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              data-testid={`nav-${item.label.toLowerCase()}`}
-            >
-              <div
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
-                  isActive(item.path)
+        
+        {/* Sales with Submenu */}
+        <div>
+          <button
+            onClick={() => setIsSalesOpen(!isSalesOpen)}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200"
+            data-testid="nav-sales"
+          >
+            <div className="flex items-center gap-3">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="text-sm font-medium">Sales</span>
+            </div>
+            {isSalesOpen ? (
+              <ChevronDown className="w-4 h-4" />
+            ) : (
+              <ChevronRight className="w-4 h-4" />
+            )}
+          </button>
+          
+          {isSalesOpen && (
+            <div className="ml-4 mt-1 space-y-1">
+              <Link to="/enquiries">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/enquiries')
                     ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm">{item.label}</span>
-              </div>
-            </Link>
-          );
-        })}
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}>
+                  Enquiries
+                </div>
+              </Link>
+              <Link to="/bookings">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/bookings')
+                    ? 'bg-indigo-50 text-indigo-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}>
+                  Bookings
+                </div>
+              </Link>
+              <Link to="/">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/')
+                    ? 'bg-indigo-50 text-indigo-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}>
+                  Sales
+                </div>
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Service */}
+        <Link to="/service" data-testid="nav-service">
+          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/service')
+              ? 'bg-indigo-50 text-indigo-600 font-medium'
+              : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+          }`}>
+            <Wrench className="w-5 h-5" />
+            <span className="text-sm">Service</span>
+          </div>
+        </Link>
+
+        {/* Inventory */}
+        <Link to="/inventory" data-testid="nav-inventory">
+          <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/inventory')
+              ? 'bg-indigo-50 text-indigo-600 font-medium'
+              : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+          }`}>
+            <Package className="w-5 h-5" />
+            <span className="text-sm">Inventory</span>
+          </div>
+        </Link>
 
         <div className="pt-6 mt-6 border-t border-gray-200">
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
