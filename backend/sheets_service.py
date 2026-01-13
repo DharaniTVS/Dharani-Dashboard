@@ -3,6 +3,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from typing import List, Dict, Any, Optional
 import logging
+import httpx
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -12,21 +14,33 @@ class SheetsService:
         self.sheet_id = os.getenv("GOOGLE_SHEETS_ID")
         self.gc = None
         self.spreadsheet = None
+        self.connected = False
     
     async def connect(self):
-        """Connect to Google Sheets using API key (read-only access for public sheets)"""
+        """Connect to Google Sheets using REST API"""
         try:
-            # For public sheets with API key
-            import gspread
-            
-            # Use gspread with API key for public sheets
-            # Note: This requires the sheet to be publicly accessible with "Anyone with the link can view"
-            self.gc = gspread.api_key(self.api_key)
-            self.spreadsheet = self.gc.open_by_key(self.sheet_id)
-            logger.info(f"✓ Connected to Google Sheets: {self.sheet_id}")
-            return True
+            # Try to fetch sheet metadata to verify connection
+            async with httpx.AsyncClient() as client:
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}"
+                params = {"key": self.api_key}
+                response = await client.get(url, params=params, timeout=10.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    logger.info(f"✓ Connected to Google Sheets: {data.get('properties', {}).get('title', 'Unknown')}")
+                    self.connected = True
+                    return True
+                elif response.status_code == 403:
+                    logger.warning(f"⚠ Sheet access denied. Please share the sheet with 'Anyone with the link can view' permission.")
+                    self.connected = False
+                    return False
+                else:
+                    logger.warning(f"⚠ Google Sheets connection failed: HTTP {response.status_code}. Using demo data.")
+                    self.connected = False
+                    return False
         except Exception as e:
-            logger.warning(f"⚠ Google Sheets connection failed: {e}. Make sure the sheet is set to 'Anyone with the link can view'. Using demo data for now.")
+            logger.warning(f"⚠ Google Sheets connection failed: {e}. Using demo data for now.")
+            self.connected = False
             return False
     
     async def get_worksheet(self, sheet_name: str):
