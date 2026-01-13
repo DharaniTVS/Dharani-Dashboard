@@ -3,6 +3,7 @@ import axios from 'axios';
 import Sidebar from './Sidebar';
 import { Card } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import { Trophy, Award, TrendingUp, Clock } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -32,51 +33,81 @@ const Analytics = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="flex" data-testid="analytics-page">
+    <div className="flex bg-gray-50" data-testid="analytics-page">
       <Sidebar user={user} onLogout={onLogout} />
-      <div className="flex-1 p-8 bg-slate-950 min-h-screen overflow-auto">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-white mb-2">Analytics & Performance</h1>
-            <p className="text-gray-400">Detailed performance metrics</p>
+      <div className="flex-1 overflow-auto">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-8 py-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Analytics & Performance</h1>
+            <p className="text-sm text-gray-600 mt-1">Detailed performance metrics across all branches</p>
           </div>
+        </div>
 
+        <div className="p-8">
           <Tabs defaultValue="sales" className="w-full">
-            <TabsList className="bg-slate-900 border-slate-700 mb-6">
-              <TabsTrigger value="sales" data-testid="sales-tab">Sales Executives</TabsTrigger>
-              <TabsTrigger value="service" data-testid="service-tab">Service Technicians</TabsTrigger>
+            <TabsList className="bg-white border border-gray-200 p-1 rounded-xl mb-8">
+              <TabsTrigger 
+                value="sales" 
+                className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg px-6 py-2.5"
+                data-testid="sales-tab"
+              >
+                <Trophy className="w-4 h-4 mr-2" />
+                Sales Executives
+              </TabsTrigger>
+              <TabsTrigger 
+                value="service"
+                className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg px-6 py-2.5"
+                data-testid="service-tab"
+              >
+                <Award className="w-4 h-4 mr-2" />
+                Service Technicians
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="sales">
-              <Card className="bg-slate-900/50 backdrop-blur border-slate-700 p-6" data-testid="executives-table">
-                <h2 className="text-xl font-bold text-white mb-6">Executive Performance</h2>
+              <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden" data-testid="executives-table">
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-lg font-bold text-gray-900">Executive Performance</h2>
+                  <p className="text-sm text-gray-600 mt-1">Track sales performance and conversion rates</p>
+                </div>
                 {loading ? (
-                  <div className="text-gray-400">Loading...</div>
+                  <div className="p-6 text-gray-600">Loading...</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-700">
-                          <th className="text-left text-gray-400 font-medium py-3 px-4">Name</th>
-                          <th className="text-left text-gray-400 font-medium py-3 px-4">Branch</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Bookings</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Deliveries</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Conversion %</th>
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Name</th>
+                          <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Branch</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Bookings</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Deliveries</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Conversion</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-gray-200">
                         {executives.map((exec, index) => (
                           <tr
                             key={exec.executive_id}
-                            className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
+                            className="hover:bg-gray-50 transition-colors"
                             data-testid={`executive-row-${index}`}
                           >
-                            <td className="text-white py-4 px-4">{exec.name}</td>
-                            <td className="text-gray-400 py-4 px-4">{exec.branch}</td>
-                            <td className="text-white text-right py-4 px-4">{exec.bookings}</td>
-                            <td className="text-white text-right py-4 px-4">{exec.deliveries}</td>
-                            <td className="text-right py-4 px-4">
-                              <span className="text-green-400 font-semibold">{exec.conversion_rate}%</span>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-semibold">
+                                  {exec.name.charAt(0)}
+                                </div>
+                                <span className="text-sm font-medium text-gray-900">{exec.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6 text-sm text-gray-600">{exec.branch}</td>
+                            <td className="py-4 px-6 text-sm font-semibold text-gray-900 text-right">{exec.bookings}</td>
+                            <td className="py-4 px-6 text-sm font-semibold text-gray-900 text-right">{exec.deliveries}</td>
+                            <td className="py-4 px-6 text-right">
+                              <div className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                <TrendingUp className="w-3 h-3" />
+                                {exec.conversion_rate}%
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -88,38 +119,57 @@ const Analytics = ({ user, onLogout }) => {
             </TabsContent>
 
             <TabsContent value="service">
-              <Card className="bg-slate-900/50 backdrop-blur border-slate-700 p-6" data-testid="technicians-table">
-                <h2 className="text-xl font-bold text-white mb-6">Technician Performance</h2>
+              <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden" data-testid="technicians-table">
+                <div className="p-6 border-b border-gray-200">
+                  <h2 className="text-lg font-bold text-gray-900">Technician Performance</h2>
+                  <p className="text-sm text-gray-600 mt-1">Service job completion and efficiency metrics</p>
+                </div>
                 {loading ? (
-                  <div className="text-gray-400">Loading...</div>
+                  <div className="p-6 text-gray-600">Loading...</div>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-slate-700">
-                          <th className="text-left text-gray-400 font-medium py-3 px-4">Name</th>
-                          <th className="text-left text-gray-400 font-medium py-3 px-4">Branch</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Completed</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Pending</th>
-                          <th className="text-right text-gray-400 font-medium py-3 px-4">Avg Time (hrs)</th>
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Name</th>
+                          <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Branch</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Completed</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Pending</th>
+                          <th className="text-right text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Avg Time</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y divide-gray-200">
                         {technicians.map((tech, index) => (
                           <tr
                             key={tech.technician_id}
-                            className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors"
+                            className="hover:bg-gray-50 transition-colors"
                             data-testid={`technician-row-${index}`}
                           >
-                            <td className="text-white py-4 px-4">{tech.name}</td>
-                            <td className="text-gray-400 py-4 px-4">{tech.branch}</td>
-                            <td className="text-white text-right py-4 px-4">{tech.jobs_completed}</td>
-                            <td className="text-right py-4 px-4">
-                              <span className={tech.jobs_pending > 5 ? 'text-orange-400' : 'text-gray-400'}>
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 font-semibold">
+                                  {tech.name.charAt(0)}
+                                </div>
+                                <span className="text-sm font-medium text-gray-900">{tech.name}</span>
+                              </div>
+                            </td>
+                            <td className="py-4 px-6 text-sm text-gray-600">{tech.branch}</td>
+                            <td className="py-4 px-6 text-sm font-semibold text-gray-900 text-right">{tech.jobs_completed}</td>
+                            <td className="py-4 px-6 text-right">
+                              <span className={`inline-flex px-3 py-1 rounded-full text-sm font-semibold ${
+                                tech.jobs_pending > 5 
+                                  ? 'bg-orange-100 text-orange-700' 
+                                  : 'bg-gray-100 text-gray-700'
+                              }`}>
                                 {tech.jobs_pending}
                               </span>
                             </td>
-                            <td className="text-gray-400 text-right py-4 px-4">{tech.avg_time}</td>
+                            <td className="py-4 px-6 text-right">
+                              <div className="inline-flex items-center gap-1 text-sm font-medium text-gray-700">
+                                <Clock className="w-3 h-3" />
+                                {tech.avg_time}h
+                              </div>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
