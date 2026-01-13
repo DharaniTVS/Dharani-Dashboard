@@ -108,14 +108,14 @@ const FloatingAI = () => {
       {!isMinimized && (
         <>
           {/* Messages */}
-          <div className=\"flex-1 overflow-y-auto p-4 space-y-4 h-[460px]\">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[460px]">
             {messages.length === 0 ? (
-              <div className=\"text-center py-12\">
-                <div className=\"w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-3\">
-                  <Sparkles className=\"w-6 h-6 text-indigo-600\" />
+              <div className="text-center py-12">
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                  <Sparkles className="w-6 h-6 text-indigo-600" />
                 </div>
-                <h4 className=\"text-sm font-semibold text-gray-900 mb-1\">Ask me anything</h4>
-                <p className=\"text-xs text-gray-600\">I can help with sales, service, and inventory questions</p>
+                <h4 className="text-sm font-semibold text-gray-900 mb-1">Ask me anything</h4>
+                <p className="text-xs text-gray-600">I can help with sales, service, and inventory questions</p>
               </div>
             ) : (
               messages.map((msg, index) => (
@@ -124,8 +124,8 @@ const FloatingAI = () => {
                   className={`flex gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div className=\"w-6 h-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0\">
-                      <Bot className=\"w-4 h-4 text-white\" />
+                    <div className="w-6 h-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Bot className="w-4 h-4 text-white" />
                     </div>
                   )}
                   <div
@@ -138,23 +138,23 @@ const FloatingAI = () => {
                     {msg.content}
                   </div>
                   {msg.role === 'user' && (
-                    <div className=\"w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0\">
-                      <User className=\"w-4 h-4 text-indigo-600\" />
+                    <div className="w-6 h-6 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-indigo-600" />
                     </div>
                   )}
                 </div>
               ))
             )}
             {loading && (
-              <div className=\"flex gap-2\">
-                <div className=\"w-6 h-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0\">
-                  <Bot className=\"w-4 h-4 text-white\" />
+              <div className="flex gap-2">
+                <div className="w-6 h-6 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Bot className="w-4 h-4 text-white" />
                 </div>
-                <div className=\"bg-gray-100 p-3 rounded-xl\">
-                  <div className=\"flex items-center gap-1\">
-                    <div className=\"w-2 h-2 bg-gray-400 rounded-full animate-bounce\" style={{ animationDelay: '0ms' }}></div>
-                    <div className=\"w-2 h-2 bg-gray-400 rounded-full animate-bounce\" style={{ animationDelay: '150ms' }}></div>
-                    <div className=\"w-2 h-2 bg-gray-400 rounded-full animate-bounce\" style={{ animationDelay: '300ms' }}></div>
+                <div className="bg-gray-100 p-3 rounded-xl">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                 </div>
               </div>
@@ -163,23 +163,23 @@ const FloatingAI = () => {
           </div>
 
           {/* Input */}
-          <div className=\"p-3 border-t border-gray-200 bg-gray-50 rounded-b-2xl\">
-            <div className=\"flex gap-2\">
+          <div className="p-3 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder=\"Ask a question...\"
-                className=\"flex-1 h-10 bg-white border-gray-200 text-sm\"
+                placeholder="Ask a question..."
+                className="flex-1 h-10 bg-white border-gray-200 text-sm"
                 disabled={loading}
               />
               <Button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                className=\"h-10 px-4 bg-indigo-600 hover:bg-indigo-700\"
-                size=\"sm\"
+                className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700"
+                size="sm"
               >
-                <Send className=\"w-4 h-4\" />
+                <Send className="w-4 h-4" />
               </Button>
             </div>
           </div>
