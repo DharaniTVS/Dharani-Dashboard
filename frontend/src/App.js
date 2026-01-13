@@ -77,6 +77,14 @@ function App() {
             element={user ? <Sales user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
           <Route
+            path="/enquiries"
+            element={user ? <Enquiries user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
+            path="/bookings"
+            element={user ? <Bookings user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+          />
+          <Route
             path="/service"
             element={user ? <Service user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
