@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,12 +7,11 @@ import logging
 from pathlib import Path
 from models import *
 from auth import create_access_token, get_current_user
+from sheets_service import sheets_service
 from twilio.rest import Client
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
-import asyncio
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from collections import defaultdict
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -25,6 +24,16 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Create the main app
+app = FastAPI()
+api_router = APIRouter(prefix="/api")
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Twilio client
 twilio_client = None
 try:
@@ -33,47 +42,24 @@ try:
 except Exception as e:
     logging.warning(f"Twilio not configured: {e}")
 
-# Create the main app
-app = FastAPI()
-api_router = APIRouter(prefix="/api")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Scheduler for WhatsApp commitments
-scheduler = AsyncIOScheduler()
-
 # ==================== AUTH ENDPOINTS ====================
 
 @api_router.post("/auth/send-otp")
 async def send_otp(request: PhoneRequest):
-    """Send OTP to phone number"""
     if not twilio_client:
-        # Demo mode - return success without actually sending
-        logger.info(f"Demo mode: OTP would be sent to {request.phone}")
         return {"status": "pending", "message": "Demo mode: Use any 6-digit code"}
-    
     try:
         verification = twilio_client.verify.services(
             os.getenv("TWILIO_VERIFY_SERVICE")
         ).verifications.create(to=request.phone, channel="sms")
         return {"status": verification.status}
     except Exception as e:
-        logger.error(f"Failed to send OTP: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @api_router.post("/auth/verify-otp", response_model=TokenResponse)
 async def verify_otp(request: VerifyOTPRequest):
-    """Verify OTP and create/login user"""
-    # In demo mode, accept any 6-digit code
     is_valid = False
-    
     if not twilio_client:
-        # Demo mode - accept any 6-digit code
         is_valid = len(request.code) == 6 and request.code.isdigit()
     else:
         try:
@@ -81,22 +67,18 @@ async def verify_otp(request: VerifyOTPRequest):
                 os.getenv("TWILIO_VERIFY_SERVICE")
             ).verification_checks.create(to=request.phone, code=request.code)
             is_valid = check.status == "approved"
-        except Exception as e:
-            logger.error(f"OTP verification failed: {e}")
+        except:
             is_valid = False
     
     if not is_valid:
         raise HTTPException(status_code=400, detail="Invalid OTP")
     
-    # Check if user exists
     user_doc = await db.users.find_one({"phone": request.phone}, {"_id": 0})
-    
     if not user_doc:
-        # Create new user
         new_user = User(
             phone=request.phone,
             name=request.name or "User",
-            role=request.role or "owner",
+            role=request.role or "admin",
             branch_id=request.branch_id
         )
         user_dict = new_user.model_dump()
@@ -106,279 +88,336 @@ async def verify_otp(request: VerifyOTPRequest):
     else:
         user = User(**user_doc)
     
-    # Create JWT token
     access_token = create_access_token(data={"sub": user.id, "role": user.role})
-    
-    return TokenResponse(
-        access_token=access_token,
-        user=user.model_dump()
-    )
+    return TokenResponse(access_token=access_token, user=user.model_dump())
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
-    """Get current user info"""
     return user
 
 # ==================== DASHBOARD ENDPOINTS ====================
 
-@api_router.get("/dashboard/overview")
-async def get_dashboard_overview(user: User = Depends(get_current_user)):
-    """Get multi-branch dashboard overview"""
+@api_router.get("/dashboard/kpis")
+async def get_dashboard_kpis(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch_id: Optional[str] = Query(None),
+    executive_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get top KPI cards for dashboard"""
     try:
-        # Fetch data from Google Sheets
-        sales_data = await sheets_service.get_sales_data()
-        service_data = await sheets_service.get_service_data()
-        finance_data = await sheets_service.get_finance_cases()
+        # Build query filters
+        query = {}
+        if start_date and end_date:
+            date_filter = {"$gte": start_date, "$lte": end_date}
+        else:
+            date_filter = None
         
-        # Aggregate by branch
-        branches = {}
-        for sale in sales_data:
-            branch_id = sale.get('branch_id', 'unknown')
-            if branch_id not in branches:
-                branches[branch_id] = {
-                    'branch_id': branch_id,
-                    'branch_name': sale.get('branch_name', 'Unknown'),
-                    'bookings': 0,
-                    'deliveries': 0,
-                    'revenue': 0
-                }
-            
-            if sale.get('status') == 'booked':
-                branches[branch_id]['bookings'] += 1
-            if sale.get('status') == 'delivered':
-                branches[branch_id]['deliveries'] += 1
-            
-            branches[branch_id]['revenue'] += float(sale.get('amount', 0) or 0)
+        if branch_id:
+            query["branch_id"] = branch_id
+        if executive_id:
+            query["executive_id"] = executive_id
         
-        # Service stats
-        service_stats = {
-            'total_jobs': len(service_data),
-            'completed': sum(1 for s in service_data if s.get('status') == 'completed'),
-            'pending': sum(1 for s in service_data if s.get('status') == 'pending')
-        }
+        # Count enquiries
+        enquiry_query = query.copy()
+        if date_filter:
+            enquiry_query["enquiry_date"] = date_filter
+        total_enquiries = await db.enquiries.count_documents(enquiry_query)
         
-        # Finance stats
-        finance_stats = {
-            'total_cases': len(finance_data),
-            'approved': sum(1 for f in finance_data if f.get('status') == 'approved'),
-            'pending': sum(1 for f in finance_data if f.get('status') == 'pending'),
-            'rejected': sum(1 for f in finance_data if f.get('status') == 'rejected')
-        }
+        # Count bookings
+        booking_query = query.copy()
+        if date_filter:
+            booking_query["booking_date"] = date_filter
+        total_bookings = await db.bookings.count_documents(booking_query)
+        
+        # Count sales
+        sales_query = query.copy()
+        if date_filter:
+            sales_query["sale_date"] = date_filter
+        total_sales = await db.sales.count_documents(sales_query)
+        
+        # Calculate conversions
+        enquiry_to_booking = round((total_bookings / total_enquiries * 100), 2) if total_enquiries > 0 else 0
+        booking_to_sales = round((total_sales / total_bookings * 100), 2) if total_bookings > 0 else 0
         
         return {
-            'branches': list(branches.values()),
-            'service_stats': service_stats,
-            'finance_stats': finance_stats,
-            'total_branches': len(branches)
+            "total_enquiries": total_enquiries,
+            "total_bookings": total_bookings,
+            "total_sales": total_sales,
+            "enquiry_to_booking_conversion": enquiry_to_booking,
+            "booking_to_sales_conversion": booking_to_sales
         }
     except Exception as e:
-        logger.error(f"Dashboard overview error: {e}")
-        # Return demo data if sheets not accessible
+        logger.error(f"KPIs error: {e}")
         return {
-            'branches': [
-                {'branch_id': '1', 'branch_name': 'Branch 1', 'bookings': 12, 'deliveries': 8, 'revenue': 850000},
-                {'branch_id': '2', 'branch_name': 'Branch 2', 'bookings': 15, 'deliveries': 10, 'revenue': 1200000},
-                {'branch_id': '3', 'branch_name': 'Branch 3', 'bookings': 10, 'deliveries': 7, 'revenue': 650000},
-                {'branch_id': '4', 'branch_name': 'Branch 4', 'bookings': 18, 'deliveries': 12, 'revenue': 1400000},
-                {'branch_id': '5', 'branch_name': 'Branch 5', 'bookings': 14, 'deliveries': 9, 'revenue': 980000}
-            ],
-            'service_stats': {'total_jobs': 145, 'completed': 120, 'pending': 25},
-            'finance_stats': {'total_cases': 68, 'approved': 52, 'pending': 12, 'rejected': 4},
-            'total_branches': 5,
-            'demo_mode': True
+            "total_enquiries": 0,
+            "total_bookings": 0,
+            "total_sales": 0,
+            "enquiry_to_booking_conversion": 0,
+            "booking_to_sales_conversion": 0
         }
 
-@api_router.get("/sales/executives")
-async def get_executives_performance(user: User = Depends(get_current_user)):
-    """Get executive-wise sales performance"""
+@api_router.get("/dashboard/funnel")
+async def get_funnel_data(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get funnel chart data: Enquiry → Booking → Sales"""
+    kpis = await get_dashboard_kpis(start_date, end_date, branch_id, None, user)
+    return {
+        "funnel": [
+            {"stage": "Enquiry", "value": kpis["total_enquiries"]},
+            {"stage": "Booking", "value": kpis["total_bookings"]},
+            {"stage": "Sales", "value": kpis["total_sales"]}
+        ]
+    }
+
+@api_router.get("/dashboard/trends")
+async def get_trends(
+    period: str = Query("daily"),  # daily or monthly
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get daily/monthly trend for Enquiries, Bookings, Sales"""
     try:
-        sales_data = await sheets_service.get_sales_data()
-        
-        executives = {}
-        for sale in sales_data:
-            exec_id = sale.get('executive_id')
-            if not exec_id:
-                continue
-            
-            if exec_id not in executives:
-                executives[exec_id] = {
-                    'executive_id': exec_id,
-                    'name': sale.get('executive_name', 'Unknown'),
-                    'branch': sale.get('branch_name', 'Unknown'),
-                    'bookings': 0,
-                    'deliveries': 0,
-                    'follow_ups': 0,
-                    'conversion_rate': 0
-                }
-            
-            if sale.get('status') == 'booked':
-                executives[exec_id]['bookings'] += 1
-            if sale.get('status') == 'delivered':
-                executives[exec_id]['deliveries'] += 1
-        
-        # Calculate conversion rates
-        for exec_data in executives.values():
-            if exec_data['bookings'] > 0:
-                exec_data['conversion_rate'] = round(
-                    (exec_data['deliveries'] / exec_data['bookings']) * 100, 2
-                )
-        
-        return {'executives': list(executives.values())}
-    except Exception as e:
-        logger.error(f"Executives performance error: {e}")
+        # This would aggregate by date - simplified version returns sample data
         return {
-            'executives': [
-                {'executive_id': '1', 'name': 'Rajesh Kumar', 'branch': 'Branch 1', 'bookings': 12, 'deliveries': 8, 'conversion_rate': 66.67},
-                {'executive_id': '2', 'name': 'Priya Sharma', 'branch': 'Branch 2', 'bookings': 15, 'deliveries': 12, 'conversion_rate': 80.0},
-                {'executive_id': '3', 'name': 'Arun Patel', 'branch': 'Branch 3', 'bookings': 10, 'deliveries': 6, 'conversion_rate': 60.0}
-            ],
-            'demo_mode': True
+            "trends": [
+                {"date": "2025-01-01", "enquiries": 15, "bookings": 12, "sales": 8},
+                {"date": "2025-01-02", "enquiries": 18, "bookings": 14, "sales": 10},
+                {"date": "2025-01-03", "enquiries": 20, "bookings": 16, "sales": 12}
+            ]
         }
+    except Exception as e:
+        logger.error(f"Trends error: {e}")
+        return {"trends": []}
 
-@api_router.get("/service/technicians")
-async def get_technicians_performance(user: User = Depends(get_current_user)):
-    """Get technician-wise service performance"""
+@api_router.get("/dashboard/branch-performance")
+async def get_branch_performance(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get branch-wise Enquiry, Booking, Sales for grouped bar chart"""
     try:
-        service_data = await sheets_service.get_service_data()
+        branches = await db.branches.find({}, {"_id": 0}).to_list(None)
+        performance = []
         
-        technicians = {}
-        for job in service_data:
-            tech_id = job.get('technician_id')
-            if not tech_id:
-                continue
+        for branch in branches:
+            enquiries = await db.enquiries.count_documents({"branch_id": branch["id"]})
+            bookings = await db.bookings.count_documents({"branch_id": branch["id"]})
+            sales = await db.sales.count_documents({"branch_id": branch["id"]})
             
-            if tech_id not in technicians:
-                technicians[tech_id] = {
-                    'technician_id': tech_id,
-                    'name': job.get('technician_name', 'Unknown'),
-                    'branch': job.get('branch_name', 'Unknown'),
-                    'jobs_completed': 0,
-                    'jobs_pending': 0,
-                    'avg_time': 0
-                }
+            performance.append({
+                "branch": branch["name"],
+                "enquiries": enquiries,
+                "bookings": bookings,
+                "sales": sales
+            })
+        
+        return {"performance": performance}
+    except Exception as e:
+        logger.error(f"Branch performance error: {e}")
+        return {"performance": []}
+
+@api_router.get("/dashboard/executive-ranking")
+async def get_executive_ranking(
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch_id: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get executive-wise performance ranking"""
+    try:
+        query = {}
+        if branch_id:
+            query["branch_id"] = branch_id
+        
+        executives = await db.executives.find(query, {"_id": 0}).to_list(None)
+        ranking = []
+        
+        for exec in executives:
+            sales_count = await db.sales.count_documents({"executive_id": exec["id"]})
+            bookings_count = await db.bookings.count_documents({"executive_id": exec["id"]})
+            enquiries_count = await db.enquiries.count_documents({"executive_id": exec["id"]})
             
-            if job.get('status') == 'completed':
-                technicians[tech_id]['jobs_completed'] += 1
-            elif job.get('status') == 'pending':
-                technicians[tech_id]['jobs_pending'] += 1
+            ranking.append({
+                "executive": exec["name"],
+                "sales": sales_count,
+                "bookings": bookings_count,
+                "enquiries": enquiries_count,
+                "score": sales_count * 3 + bookings_count * 2 + enquiries_count
+            })
         
-        return {'technicians': list(technicians.values())}
+        ranking.sort(key=lambda x: x["score"], reverse=True)
+        return {"ranking": ranking[:10]}  # Top 10
     except Exception as e:
-        logger.error(f"Technicians performance error: {e}")
-        return {
-            'technicians': [
-                {'technician_id': '1', 'name': 'Kumar S', 'branch': 'Branch 1', 'jobs_completed': 45, 'jobs_pending': 3, 'avg_time': 2.5},
-                {'technician_id': '2', 'name': 'Vijay R', 'branch': 'Branch 2', 'jobs_completed': 52, 'jobs_pending': 2, 'avg_time': 2.2},
-                {'technician_id': '3', 'name': 'Suresh M', 'branch': 'Branch 3', 'jobs_completed': 38, 'jobs_pending': 5, 'avg_time': 3.1}
-            ],
-            'demo_mode': True
-        }
+        logger.error(f"Executive ranking error: {e}")
+        return {"ranking": []}
 
-# ==================== AI CHAT ENDPOINT ====================
+# ==================== ENQUIRIES CRUD ====================
 
-@api_router.post("/ai/chat", response_model=ChatResponse)
-async def ai_chat(request: ChatRequest, user: User = Depends(get_current_user)):
-    """AI chat interface for business queries - using Gemini"""
-    try:
-        session_id = request.session_id or f"user_{user.id}"
-        
-        # Fetch recent data for context
-        sales_data = await sheets_service.get_sales_data()
-        service_data = await sheets_service.get_service_data()
-        
-        # Build context
-        context = f"""You are Dharani TVS Business AI Manager. You have access to live data from 5 branches.
-        
-Current Data Summary:
-- Total Sales Records: {len(sales_data)}
-- Total Service Jobs: {len(service_data)}
+@api_router.get("/enquiries")
+async def list_enquiries(
+    branch_id: Optional[str] = Query(None),
+    executive_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    query = {}
+    if branch_id:
+        query["branch_id"] = branch_id
+    if executive_id:
+        query["executive_id"] = executive_id
+    if status:
+        query["status"] = status
+    
+    enquiries = await db.enquiries.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"enquiries": enquiries}
 
-User Role: {user.role}
-User Branch: {user.branch_id or 'All Branches'}
+@api_router.post("/enquiries")
+async def create_enquiry(enquiry: EnquiryCreate, user: User = Depends(get_current_user)):
+    # Enrich with names
+    branch = await db.branches.find_one({"id": enquiry.branch_id}, {"_id": 0})
+    executive = await db.executives.find_one({"id": enquiry.executive_id}, {"_id": 0})
+    model = await db.models.find_one({"id": enquiry.model_id}, {"_id": 0})
+    
+    new_enquiry = Enquiry(
+        **enquiry.model_dump(),
+        branch_name=branch["name"] if branch else None,
+        executive_name=executive["name"] if executive else None,
+        model_name=model["name"] if model else None
+    )
+    
+    enquiry_dict = new_enquiry.model_dump()
+    enquiry_dict['created_at'] = enquiry_dict['created_at'].isoformat()
+    await db.enquiries.insert_one(enquiry_dict)
+    
+    return {"message": "Enquiry created", "id": new_enquiry.id}
 
-Provide concise, actionable insights based on the user's query. Be specific with numbers and recommendations."""
-        
-        # Initialize LLM chat with Gemini
-        llm_chat = LlmChat(
-            api_key=os.getenv("EMERGENT_LLM_KEY"),
-            session_id=session_id,
-            system_message=context
-        ).with_model("gemini", "gemini-3-flash-preview")
-        
-        # Send message
-        user_message = UserMessage(text=request.message)
-        response = await llm_chat.send_message(user_message)
-        
-        # Save to chat history
-        await db.chat_history.insert_one({
-            "user_id": user.id,
-            "session_id": session_id,
-            "message": request.message,
-            "response": response,
-            "timestamp": datetime.now(timezone.utc).isoformat()
-        })
-        
-        return ChatResponse(response=response, session_id=session_id)
-    except Exception as e:
-        logger.error(f"AI chat error: {e}")
-        raise HTTPException(status_code=500, detail=f"AI chat failed: {str(e)}")
+@api_router.put("/enquiries/{enquiry_id}")
+async def update_enquiry(enquiry_id: str, updates: dict, user: User = Depends(get_current_user)):
+    await db.enquiries.update_one({"id": enquiry_id}, {"$set": updates})
+    return {"message": "Enquiry updated"}
 
-# ==================== COMMITMENTS ENDPOINTS ====================
+@api_router.delete("/enquiries/{enquiry_id}")
+async def delete_enquiry(enquiry_id: str, user: User = Depends(get_current_user)):
+    await db.enquiries.delete_one({"id": enquiry_id})
+    return {"message": "Enquiry deleted"}
 
-@api_router.get("/commitments/today")
-async def get_today_commitments(user: User = Depends(get_current_user)):
-    """Get today's commitments"""
-    try:
-        sales_commitments = await sheets_service.get_daily_commitments_sales()
-        service_commitments = await sheets_service.get_daily_commitments_service()
-        
-        return {
-            'sales': sales_commitments,
-            'service': service_commitments
-        }
-    except Exception as e:
-        logger.error(f"Commitments error: {e}")
-        return {'sales': [], 'service': [], 'demo_mode': True}
+# ==================== BOOKINGS CRUD ====================
 
-# ==================== PLANS ENDPOINTS ====================
+@api_router.get("/bookings")
+async def list_bookings(user: User = Depends(get_current_user)):
+    bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"bookings": bookings}
 
-@api_router.get("/plans/day")
-async def get_day_plan(user: User = Depends(get_current_user)):
-    """Get day plan vs actual"""
-    try:
-        day_plan = await sheets_service.get_day_plan()
-        return {'plan': day_plan}
-    except Exception as e:
-        logger.error(f"Day plan error: {e}")
-        return {'plan': [], 'demo_mode': True}
+@api_router.post("/bookings")
+async def create_booking(booking: BookingCreate, user: User = Depends(get_current_user)):
+    # Enrich with names
+    branch = await db.branches.find_one({"id": booking.branch_id}, {"_id": 0})
+    executive = await db.executives.find_one({"id": booking.executive_id}, {"_id": 0})
+    model = await db.models.find_one({"id": booking.model_id}, {"_id": 0})
+    
+    new_booking = Booking(
+        **booking.model_dump(),
+        branch_name=branch["name"] if branch else None,
+        executive_name=executive["name"] if executive else None,
+        model_name=model["name"] if model else None
+    )
+    
+    booking_dict = new_booking.model_dump()
+    booking_dict['created_at'] = booking_dict['created_at'].isoformat()
+    await db.bookings.insert_one(booking_dict)
+    
+    # Update enquiry status if linked
+    if booking.enquiry_id:
+        await db.enquiries.update_one({"id": booking.enquiry_id}, {"$set": {"status": "converted"}})
+    
+    return {"message": "Booking created", "id": new_booking.id}
 
-@api_router.get("/plans/week")
-async def get_week_plan(user: User = Depends(get_current_user)):
-    """Get week plan vs actual"""
-    try:
-        week_plan = await sheets_service.get_week_plan()
-        return {'plan': week_plan}
-    except Exception as e:
-        logger.error(f"Week plan error: {e}")
-        return {'plan': [], 'demo_mode': True}
+# ==================== SALES CRUD ====================
 
-@api_router.get("/plans/month")
-async def get_month_plan(user: User = Depends(get_current_user)):
-    """Get month plan vs actual"""
-    try:
-        month_plan = await sheets_service.get_month_plan()
-        return {'plan': month_plan}
-    except Exception as e:
-        logger.error(f"Month plan error: {e}")
-        return {'plan': [], 'demo_mode': True}
+@api_router.get("/sales")
+async def list_sales(user: User = Depends(get_current_user)):
+    sales = await db.sales.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"sales": sales}
+
+@api_router.post("/sales")
+async def create_sale(sale: SaleCreate, user: User = Depends(get_current_user)):
+    # Enrich with names
+    branch = await db.branches.find_one({"id": sale.branch_id}, {"_id": 0})
+    executive = await db.executives.find_one({"id": sale.executive_id}, {"_id": 0})
+    model = await db.models.find_one({"id": sale.model_id}, {"_id": 0})
+    
+    new_sale = Sale(
+        **sale.model_dump(),
+        branch_name=branch["name"] if branch else None,
+        executive_name=executive["name"] if executive else None,
+        model_name=model["name"] if model else None
+    )
+    
+    sale_dict = new_sale.model_dump()
+    sale_dict['created_at'] = sale_dict['created_at'].isoformat()
+    await db.sales.insert_one(sale_dict)
+    
+    # Update booking status if linked
+    if sale.booking_id:
+        await db.bookings.update_one({"id": sale.booking_id}, {"$set": {"status": "delivered"}})
+    
+    return {"message": "Sale created", "id": new_sale.id}
+
+# ==================== MASTER DATA CRUD ====================
+
+@api_router.get("/branches")
+async def list_branches(user: User = Depends(get_current_user)):
+    branches = await db.branches.find({}, {"_id": 0}).to_list(None)
+    return {"branches": branches}
+
+@api_router.post("/branches")
+async def create_branch(branch: Branch, user: User = Depends(get_current_user)):
+    branch_dict = branch.model_dump()
+    branch_dict['created_at'] = branch_dict['created_at'].isoformat()
+    await db.branches.insert_one(branch_dict)
+    return {"message": "Branch created", "id": branch.id}
+
+@api_router.get("/executives")
+async def list_executives(user: User = Depends(get_current_user)):
+    executives = await db.executives.find({}, {"_id": 0}).to_list(None)
+    return {"executives": executives}
+
+@api_router.post("/executives")
+async def create_executive(executive: Executive, user: User = Depends(get_current_user)):
+    branch = await db.branches.find_one({"id": executive.branch_id}, {"_id": 0})
+    executive.branch_name = branch["name"] if branch else None
+    
+    exec_dict = executive.model_dump()
+    exec_dict['created_at'] = exec_dict['created_at'].isoformat()
+    await db.executives.insert_one(exec_dict)
+    return {"message": "Executive created", "id": executive.id}
+
+@api_router.get("/models")
+async def list_models(user: User = Depends(get_current_user)):
+    models = await db.models.find({}, {"_id": 0}).to_list(None)
+    return {"models": models}
+
+@api_router.post("/models")
+async def create_model(model: VehicleModel, user: User = Depends(get_current_user)):
+    model_dict = model.model_dump()
+    model_dict['created_at'] = model_dict['created_at'].isoformat()
+    await db.models.insert_one(model_dict)
+    return {"message": "Model created", "id": model.id}
 
 # ==================== ROOT ====================
 
 @api_router.get("/")
 async def root():
-    return {"message": "Dharani TVS Business AI Manager API", "status": "active"}
+    return {"message": "Dealership SaaS API", "status": "active"}
 
-# Include router
 app.include_router(api_router)
 
 app.add_middleware(
@@ -391,14 +430,9 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting Dharani TVS Business AI Manager...")
-    # Connect to Google Sheets
+    logger.info("Starting Dealership SaaS API...")
     await sheets_service.connect()
-    
-    # Start scheduler (commented for now - enable when Twilio is configured)
-    # scheduler.start()
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
-    # scheduler.shutdown()
