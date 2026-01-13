@@ -1,22 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, Check, ChevronDown } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
+import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle } from 'lucide-react';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
-  const [selectedBranches, setSelectedBranches] = useState(['All']);
-  const [isOpen, setIsOpen] = useState(false);
-
-  const branches = [
-    'All',
-    'Bhavani',
-    'Kavindapadi',
-    'Anthiyur',
-    'Kumarapalayam',
-    'Ammapettai'
-  ];
 
   const isActive = (path) => location.pathname === path;
 
@@ -25,26 +13,6 @@ const Sidebar = ({ user, onLogout }) => {
     { path: '/service', label: 'Service', icon: Wrench, section: 'main' },
     { path: '/inventory', label: 'Inventory', icon: Package, section: 'main' }
   ];
-
-  const toggleBranch = (branch) => {
-    if (branch === 'All') {
-      setSelectedBranches(['All']);
-    } else {
-      const newSelection = selectedBranches.filter(b => b !== 'All');
-      if (selectedBranches.includes(branch)) {
-        const filtered = newSelection.filter(b => b !== branch);
-        setSelectedBranches(filtered.length === 0 ? ['All'] : filtered);
-      } else {
-        setSelectedBranches([...newSelection, branch]);
-      }
-    }
-  };
-
-  const displayText = selectedBranches.includes('All') 
-    ? 'All Branches' 
-    : selectedBranches.length === 1 
-    ? selectedBranches[0]
-    : `${selectedBranches.length} Branches`;
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col" data-testid="sidebar">
