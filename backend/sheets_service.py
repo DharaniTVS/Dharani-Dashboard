@@ -33,43 +33,50 @@ class SheetsService:
             self.connected = False
             return False
     
+    # Sheet name to GID mapping (you may need to adjust these)
+    SHEET_GIDS = {
+        "Sales Master": 0,
+        "Leads": 1,
+        "Finance Cases": 2,
+        "Discounts & DC": 3,
+        "Service Job Cards": 4,
+        "Technicians": 5,
+        "Inventory": 6,
+        "Payments": 7,
+        "Daily Commitments (Sales)": 8,
+        "Daily Commitments (Service)": 9,
+        "Day Plan": 10,
+        "Week Plan": 11,
+        "Month Plan": 12
+    }
+    
     async def get_worksheet(self, sheet_name: str):
-        """Get a specific worksheet by name"""
+        """Get sheet GID"""
         if not self.connected:
             return None
-        return sheet_name
+        return self.SHEET_GIDS.get(sheet_name, 0)
     
-    async def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
+    async def read_sheet(self, sheet_name: str, gid: int = None) -> List[Dict[str, Any]]:
         """Read all data from a sheet and return as list of dicts"""
         try:
             if not self.connected:
                 return []
             
-            # Use Google Sheets API v4 to read data
-            async with httpx.AsyncClient() as client:
-                url = f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}/values/{sheet_name}"
-                params = {"key": self.api_key}
-                response = await client.get(url, params=params, timeout=10.0)
+            # Use provided GID or lookup from sheet name
+            sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
+            
+            # Use Google Sheets CSV export
+            async with httpx.AsyncClient(follow_redirects=True) as client:
+                url = f"{self.base_url}?format=csv&gid={sheet_gid}"
+                response = await client.get(url, timeout=10.0)
                 
                 if response.status_code == 200:
-                    data = response.json()
-                    values = data.get("values", [])
+                    # Parse CSV
+                    csv_data = response.text
+                    reader = csv.DictReader(io.StringIO(csv_data))
+                    result = [row for row in reader]
                     
-                    if len(values) < 2:
-                        return []
-                    
-                    # First row is headers
-                    headers = values[0]
-                    rows = values[1:]
-                    
-                    # Convert to list of dicts
-                    result = []
-                    for row in rows:
-                        # Pad row if it has fewer columns than headers
-                        padded_row = row + [''] * (len(headers) - len(row))
-                        result.append(dict(zip(headers, padded_row)))
-                    
-                    logger.info(f"✓ Read {len(result)} rows from sheet '{sheet_name}'")
+                    logger.info(f"✓ Read {len(result)} rows from sheet '{sheet_name}' (gid={sheet_gid})")
                     return result
                 else:
                     logger.error(f"Failed to read sheet {sheet_name}: HTTP {response.status_code}")
