@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard';
+import Sales from './components/Sales';
 import Service from './components/Service';
 import Inventory from './components/Inventory';
 import './App.css';
