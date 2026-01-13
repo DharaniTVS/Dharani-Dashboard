@@ -1,20 +1,50 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { LayoutDashboard, TrendingUp, MessageSquare, CheckSquare, Calendar, LogOut, Settings, HelpCircle } from 'lucide-react';
+import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, Check, ChevronDown } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
+  const [selectedBranches, setSelectedBranches] = useState(['All']);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const branches = [
+    'All',
+    'Bhavani',
+    'Kavindapadi',
+    'Anthiyur',
+    'Kumarapalayam',
+    'Ammapettai'
+  ];
 
   const isActive = (path) => location.pathname === path;
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard, section: 'main' },
-    { path: '/analytics', label: 'Analytics', icon: TrendingUp, section: 'main' },
-    { path: '/chat', label: 'AI Assistant', icon: MessageSquare, section: 'main' },
-    { path: '/commitments', label: 'Commitments', icon: CheckSquare, section: 'main' },
-    { path: '/plans', label: 'Plans', icon: Calendar, section: 'main' }
+    { path: '/', label: 'Sales', icon: ShoppingCart, section: 'main' },
+    { path: '/service', label: 'Service', icon: Wrench, section: 'main' },
+    { path: '/inventory', label: 'Inventory', icon: Package, section: 'main' }
   ];
+
+  const toggleBranch = (branch) => {
+    if (branch === 'All') {
+      setSelectedBranches(['All']);
+    } else {
+      const newSelection = selectedBranches.filter(b => b !== 'All');
+      if (selectedBranches.includes(branch)) {
+        const filtered = newSelection.filter(b => b !== branch);
+        setSelectedBranches(filtered.length === 0 ? ['All'] : filtered);
+      } else {
+        setSelectedBranches([...newSelection, branch]);
+      }
+    }
+  };
+
+  const displayText = selectedBranches.includes('All') 
+    ? 'All Branches' 
+    : selectedBranches.length === 1 
+    ? selectedBranches[0]
+    : `${selectedBranches.length} Branches`;
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col" data-testid="sidebar">
@@ -35,6 +65,46 @@ const Sidebar = ({ user, onLogout }) => {
             <p className="text-xs text-gray-600 capitalize">{user.role.replace('_', ' ')}</p>
           </div>
         </div>
+      </div>
+
+      {/* Branch Selector */}
+      <div className="mx-4 mt-4">
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <Button 
+              variant="outline" 
+              className="w-full justify-between bg-white hover:bg-gray-50 border-gray-200"
+              data-testid="branch-selector"
+            >
+              <span className="text-sm font-medium text-gray-700">{displayText}</span>
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-3" align="start">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Select Branches</p>
+              {branches.map((branch) => (
+                <button
+                  key={branch}
+                  onClick={() => toggleBranch(branch)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  data-testid={`branch-option-${branch.toLowerCase()}`}
+                >
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
+                    selectedBranches.includes(branch) 
+                      ? 'bg-indigo-600 border-indigo-600' 
+                      : 'border-gray-300'
+                  }`}>
+                    {selectedBranches.includes(branch) && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-700">{branch}</span>
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Navigation */}
