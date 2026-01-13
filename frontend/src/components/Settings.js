@@ -4,8 +4,9 @@ import Sidebar from './Sidebar';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Settings as SettingsIcon, Moon, Sun, Mail, Plus, Trash2, Save, Shield } from 'lucide-react';
+import { Settings as SettingsIcon, Moon, Sun, Mail, Plus, Trash2, Save, Shield, Bot, Key, Eye, EyeOff } from 'lucide-react';
 import { Switch } from './ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -13,12 +14,25 @@ const API = `${BACKEND_URL}/api`;
 const Settings = ({ user, onLogout }) => {
   const [settings, setSettings] = useState({
     dark_mode: false,
-    allowed_emails: []
+    allowed_emails: [],
+    ai_api_key: '',
+    ai_provider: 'gemini',
+    ai_model: 'gemini-2.5-flash'
   });
   const [newEmail, setNewEmail] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [aiProvider, setAiProvider] = useState('gemini');
+  const [aiModel, setAiModel] = useState('gemini-2.5-flash');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  const aiModels = {
+    gemini: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+    openai: ['gpt-5.2', 'gpt-5.1', 'gpt-4o', 'gpt-4.1'],
+    anthropic: ['claude-4-sonnet-20250514', 'claude-sonnet-4-5-20250929', 'claude-3-5-haiku-20241022']
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -27,7 +41,11 @@ const Settings = ({ user, onLogout }) => {
   const fetchSettings = async () => {
     try {
       const response = await axios.get(`${API}/settings`);
-      setSettings(response.data);
+      const data = response.data;
+      setSettings(data);
+      if (data.ai_api_key) setApiKey(data.ai_api_key);
+      if (data.ai_provider) setAiProvider(data.ai_provider);
+      if (data.ai_model) setAiModel(data.ai_model);
     } catch (error) {
       console.error('Failed to fetch settings:', error);
     } finally {
@@ -54,11 +72,24 @@ const Settings = ({ user, onLogout }) => {
     const newSettings = { ...settings, dark_mode: checked };
     updateSettings(newSettings);
     
-    // Apply dark mode to document
     if (checked) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
+    }
+  };
+
+  const saveAiSettings = async () => {
+    setSaving(true);
+    try {
+      await axios.put(`${API}/settings/ai?ai_api_key=${encodeURIComponent(apiKey)}&ai_provider=${aiProvider}&ai_model=${aiModel}`);
+      setMessage({ type: 'success', text: 'AI settings saved successfully!' });
+      setTimeout(() => setMessage({ type: '', text: '' }), 3000);
+    } catch (error) {
+      console.error('Failed to save AI settings:', error);
+      setMessage({ type: 'error', text: 'Failed to save AI settings' });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -124,7 +155,7 @@ const Settings = ({ user, onLogout }) => {
             <SettingsIcon className="w-8 h-8 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-              <p className="text-sm text-gray-600 mt-1">Manage application preferences and access control</p>
+              <p className="text-sm text-gray-600 mt-1">Manage application preferences, AI configuration, and access control</p>
             </div>
           </div>
         </div>
@@ -139,6 +170,90 @@ const Settings = ({ user, onLogout }) => {
               {message.text}
             </div>
           )}
+
+          {/* AI Configuration Settings */}
+          <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Bot className="w-5 h-5 text-indigo-600" />
+              <h2 className="text-lg font-semibold text-gray-900">AI Assistant Configuration</h2>
+            </div>
+
+            <div className="space-y-4">
+              {/* API Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Key className="w-4 h-4 inline mr-1" />
+                  AI API Key
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Input
+                      type={showApiKey ? 'text' : 'password'}
+                      placeholder="Enter your API key (leave empty to use default)"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="bg-white text-gray-900 border-gray-300 pr-10"
+                      data-testid="api-key-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Leave empty to use the default Emergent LLM key. You can use your own OpenAI, Gemini, or Anthropic API key.
+                </p>
+              </div>
+
+              {/* Provider Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">AI Provider</label>
+                  <Select value={aiProvider} onValueChange={(value) => {
+                    setAiProvider(value);
+                    setAiModel(aiModels[value][0]);
+                  }}>
+                    <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="ai-provider-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      <SelectItem value="gemini" className="text-gray-900 hover:bg-gray-100">Google Gemini</SelectItem>
+                      <SelectItem value="openai" className="text-gray-900 hover:bg-gray-100">OpenAI (ChatGPT)</SelectItem>
+                      <SelectItem value="anthropic" className="text-gray-900 hover:bg-gray-100">Anthropic (Claude)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Model</label>
+                  <Select value={aiModel} onValueChange={setAiModel}>
+                    <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="ai-model-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white">
+                      {aiModels[aiProvider].map(model => (
+                        <SelectItem key={model} value={model} className="text-gray-900 hover:bg-gray-100">{model}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <Button
+                onClick={saveAiSettings}
+                disabled={saving}
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                data-testid="save-ai-settings"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? 'Saving...' : 'Save AI Settings'}
+              </Button>
+            </div>
+          </Card>
 
           {/* Appearance Settings */}
           <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
