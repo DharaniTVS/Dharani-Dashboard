@@ -7,7 +7,6 @@ import logging
 from pathlib import Path
 from models import *
 from auth import create_access_token, get_current_user
-from sheets_service import sheets_service
 from twilio.rest import Client
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from datetime import datetime, timezone, timedelta
@@ -17,6 +16,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Import sheets_service AFTER loading environment
+from sheets_service import sheets_service
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
