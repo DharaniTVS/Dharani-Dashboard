@@ -89,6 +89,15 @@ const Sidebar = ({ user, onLogout }) => {
           
           {isSalesOpen && (
             <div className="ml-4 mt-1 space-y-1">
+              <Link to="/dashboard">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/dashboard')
+                    ? 'bg-indigo-50 text-indigo-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}>
+                  Dashboard
+                </div>
+              </Link>
               <Link to="/enquiries">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                   isActive('/enquiries')
@@ -113,7 +122,7 @@ const Sidebar = ({ user, onLogout }) => {
                     ? 'bg-indigo-50 text-indigo-600 font-medium'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}>
-                  Sales
+                  Sold
                 </div>
               </Link>
             </div>
