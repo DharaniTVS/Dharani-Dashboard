@@ -37,7 +37,7 @@ const Sidebar = ({ user, onLogout }) => {
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <h2 className="text-xl font-bold text-gray-900">Dharani TVS</h2>
-        <p className="text-sm text-indigo-600 font-medium">Business Manager</p>
+        <p className="text-sm text-indigo-600 font-medium">AI Business Manager</p>
       </div>
 
       {/* User Info */}
