@@ -278,14 +278,13 @@ async def get_technicians_performance(user: User = Depends(get_current_user)):
 
 @api_router.post("/ai/chat", response_model=ChatResponse)
 async def ai_chat(request: ChatRequest, user: User = Depends(get_current_user)):
-    """AI chat interface for business queries"""
+    """AI chat interface for business queries - using Gemini"""
     try:
         session_id = request.session_id or f"user_{user.id}"
         
         # Fetch recent data for context
         sales_data = await sheets_service.get_sales_data()
         service_data = await sheets_service.get_service_data()
-        finance_data = await sheets_service.get_finance_cases()
         
         # Build context
         context = f"""You are Dharani TVS Business AI Manager. You have access to live data from 5 branches.
@@ -293,19 +292,18 @@ async def ai_chat(request: ChatRequest, user: User = Depends(get_current_user)):
 Current Data Summary:
 - Total Sales Records: {len(sales_data)}
 - Total Service Jobs: {len(service_data)}
-- Finance Cases: {len(finance_data)}
 
 User Role: {user.role}
 User Branch: {user.branch_id or 'All Branches'}
 
-Provide concise, actionable insights based on the user's query."""
+Provide concise, actionable insights based on the user's query. Be specific with numbers and recommendations."""
         
-        # Initialize LLM chat
+        # Initialize LLM chat with Gemini
         llm_chat = LlmChat(
             api_key=os.getenv("EMERGENT_LLM_KEY"),
             session_id=session_id,
             system_message=context
-        ).with_model("openai", "gpt-5.2")
+        ).with_model("gemini", "gemini-3-flash-preview")
         
         # Send message
         user_message = UserMessage(text=request.message)
