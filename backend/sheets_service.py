@@ -16,20 +16,23 @@ class SheetsService:
     async def connect(self):
         """Test connection to Google Sheets using public export"""
         try:
-            async with httpx.AsyncClient(follow_redirects=True) as client:
+            async with httpx.AsyncClient(follow_redirects=True, timeout=15.0) as client:
                 url = f"{self.base_url}?format=csv&gid=0"
-                response = await client.get(url, timeout=10.0)
+                response = await client.get(url)
                 
-                if response.status_code == 200 and len(response.text) > 0:
-                    logger.info(f"✓ Connected to Google Sheets (public export method)")
-                    self.connected = True
-                    return True
-                else:
-                    logger.warning(f"⚠ Sheet access denied. Make sure the sheet is set to 'Anyone with the link can view'.")
-                    self.connected = False
-                    return False
+                if response.status_code == 200 and len(response.text) > 100:
+                    # Check if it's actual CSV data
+                    lines = response.text.split('\n')
+                    if len(lines) > 1:
+                        logger.info(f"✓ Connected to Google Sheets: {len(lines)-1} rows detected")
+                        self.connected = True
+                        return True
+                
+                logger.warning(f"⚠ Sheet connection issue: status={response.status_code}, length={len(response.text)}")
+                self.connected = False
+                return False
         except Exception as e:
-            logger.warning(f"⚠ Google Sheets connection failed: {e}. Using demo data.")
+            logger.warning(f"⚠ Google Sheets connection failed: {e}")
             self.connected = False
             return False
     
