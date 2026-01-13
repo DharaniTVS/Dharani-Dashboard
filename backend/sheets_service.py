@@ -15,25 +15,30 @@ class SheetsService:
     
     async def connect(self):
         """Test connection to Google Sheets using public export"""
-        try:
-            # Use requests library which handles Google redirects better
-            import requests
-            url = f"{self.base_url}?format=csv&gid=0"
-            response = requests.get(url, timeout=15, allow_redirects=True)
-            
-            # Check if we got valid CSV data
-            if response.status_code == 200 and len(response.text) > 100:
-                lines = response.text.strip().split('\n')
-                if len(lines) > 1 and ',' in lines[0]:
-                    logger.info(f"✓ Connected to Google Sheets: {len(lines)-1} data rows")
-                    self.connected = True
-                    return True
-            
-            logger.error(f"Sheet connection failed: HTTP {response.status_code}")
-            self.connected = False
-            return False
-        except Exception as e:
-            logger.error(f"Google Sheets connection error: {type(e).__name__}: {e}")
+        import asyncio
+        
+        def sync_connect():
+            try:
+                import requests
+                url = f"{self.base_url}?format=csv&gid=0"
+                response = requests.get(url, timeout=15, allow_redirects=True)
+                
+                if response.status_code == 200 and len(response.text) > 100:
+                    lines = response.text.strip().split('\n')
+                    if len(lines) > 1:
+                        return True, len(lines) - 1
+                return False, response.status_code
+            except Exception as e:
+                return False, str(e)
+        
+        # Run sync function in thread pool
+        result = await asyncio.to_thread(sync_connect)
+        if result[0]:
+            logger.info(f"✓ Connected to Google Sheets: {result[1]} data rows")
+            self.connected = True
+            return True
+        else:
+            logger.error(f"Sheet connection failed: {result[1]}")
             self.connected = False
             return False
     
