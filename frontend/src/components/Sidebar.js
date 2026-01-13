@@ -35,46 +35,6 @@ const Sidebar = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Branch Selector */}
-      <div className="mx-4 mt-4">
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
-          <PopoverTrigger asChild>
-            <Button 
-              variant="outline" 
-              className="w-full justify-between bg-white hover:bg-gray-50 border-gray-200"
-              data-testid="branch-selector"
-            >
-              <span className="text-sm font-medium text-gray-700">{displayText}</span>
-              <ChevronDown className="w-4 h-4 text-gray-500" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-56 p-3" align="start">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold text-gray-600 uppercase mb-2">Select Branches</p>
-              {branches.map((branch) => (
-                <button
-                  key={branch}
-                  onClick={() => toggleBranch(branch)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  data-testid={`branch-option-${branch.toLowerCase()}`}
-                >
-                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center ${
-                    selectedBranches.includes(branch) 
-                      ? 'bg-indigo-600 border-indigo-600' 
-                      : 'border-gray-300'
-                  }`}>
-                    {selectedBranches.includes(branch) && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </div>
-                  <span className="text-sm text-gray-700">{branch}</span>
-                </button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">
         <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
