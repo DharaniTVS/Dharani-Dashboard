@@ -56,6 +56,10 @@ class AppSettings(BaseModel):
     dark_mode: bool = False
     allowed_emails: List[str] = []
 
+class ChatRequest(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+
 # ==================== AUTH HELPERS ====================
 
 async def get_current_user(request: Request) -> User:
