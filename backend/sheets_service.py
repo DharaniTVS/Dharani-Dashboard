@@ -74,9 +74,6 @@ class SheetsService:
         
         def sync_read():
             try:
-                if not self.connected:
-                    return []
-                
                 sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
                 
                 import requests
