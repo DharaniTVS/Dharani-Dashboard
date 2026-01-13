@@ -45,24 +45,45 @@ class SheetsService:
     
     async def get_worksheet(self, sheet_name: str):
         """Get a specific worksheet by name"""
-        try:
-            if not self.spreadsheet:
-                await self.connect()
-            return self.spreadsheet.worksheet(sheet_name)
-        except Exception as e:
-            logger.error(f"Failed to get worksheet {sheet_name}: {e}")
+        if not self.connected:
             return None
+        return sheet_name
     
     async def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
         """Read all data from a sheet and return as list of dicts"""
         try:
-            worksheet = await self.get_worksheet(sheet_name)
-            if not worksheet:
+            if not self.connected:
                 return []
             
-            # Get all values
-            data = worksheet.get_all_records()
-            return data
+            # Use Google Sheets API v4 to read data
+            async with httpx.AsyncClient() as client:
+                url = f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}/values/{sheet_name}"
+                params = {"key": self.api_key}
+                response = await client.get(url, params=params, timeout=10.0)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    values = data.get("values", [])
+                    
+                    if len(values) < 2:
+                        return []
+                    
+                    # First row is headers
+                    headers = values[0]
+                    rows = values[1:]
+                    
+                    # Convert to list of dicts
+                    result = []
+                    for row in rows:
+                        # Pad row if it has fewer columns than headers
+                        padded_row = row + [''] * (len(headers) - len(row))
+                        result.append(dict(zip(headers, padded_row)))
+                    
+                    logger.info(f"✓ Read {len(result)} rows from sheet '{sheet_name}'")
+                    return result
+                else:
+                    logger.error(f"Failed to read sheet {sheet_name}: HTTP {response.status_code}")
+                    return []
         except Exception as e:
             logger.error(f"Failed to read sheet {sheet_name}: {e}")
             return []
