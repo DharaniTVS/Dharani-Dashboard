@@ -26,6 +26,23 @@ const Sales = ({ user, onLogout }) => {
   useEffect(() => {
     fetchData();
     fetchFilters();
+    
+    // Listen for branch changes
+    const handleBranchChange = (event) => {
+      setSelectedBranch(event.detail);
+    };
+    
+    window.addEventListener('branchChanged', handleBranchChange);
+    
+    // Initialize from localStorage
+    const savedBranch = localStorage.getItem('selectedBranch');
+    if (savedBranch) {
+      setSelectedBranch(savedBranch);
+    }
+    
+    return () => {
+      window.removeEventListener('branchChanged', handleBranchChange);
+    };
   }, []);
 
   useEffect(() => {
