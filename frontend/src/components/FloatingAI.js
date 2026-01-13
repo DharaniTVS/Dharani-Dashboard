@@ -75,32 +75,32 @@ const FloatingAI = () => {
       className={`fixed bottom-6 right-6 bg-white rounded-2xl border border-gray-200 shadow-2xl z-50 transition-all duration-200 ${
         isMinimized ? 'w-80 h-16' : 'w-96 h-[600px]'
       }`}
-      data-testid=\"ai-assistant-window\"
+      data-testid="ai-assistant-window"
     >
       {/* Header */}
-      <div className=\"flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-2xl\">
-        <div className=\"flex items-center gap-3\">
-          <div className=\"w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center\">
-            <Sparkles className=\"w-5 h-5 text-white\" />
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-2xl">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className=\"text-sm font-semibold text-gray-900\">AI Assistant</h3>
-            <p className=\"text-xs text-gray-600\">Powered by Gemini</p>
+            <h3 className="text-sm font-semibold text-gray-900">AI Assistant</h3>
+            <p className="text-xs text-gray-600">Powered by Gemini</p>
           </div>
         </div>
-        <div className=\"flex items-center gap-2\">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            className=\"p-1 hover:bg-gray-200 rounded transition-colors\"
+            className="p-1 hover:bg-gray-200 rounded transition-colors"
           >
-            <Minimize2 className=\"w-4 h-4 text-gray-600\" />
+            <Minimize2 className="w-4 h-4 text-gray-600" />
           </button>
           <button
             onClick={() => setIsOpen(false)}
-            className=\"p-1 hover:bg-gray-200 rounded transition-colors\"
-            data-testid=\"close-ai-button\"
+            className="p-1 hover:bg-gray-200 rounded transition-colors"
+            data-testid="close-ai-button"
           >
-            <X className=\"w-4 h-4 text-gray-600\" />
+            <X className="w-4 h-4 text-gray-600" />
           </button>
         </div>
       </div>
