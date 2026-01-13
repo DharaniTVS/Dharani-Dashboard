@@ -255,6 +255,93 @@ async def remove_allowed_email(email: str = Query(...), user: User = Depends(get
     )
     return {"message": f"Email {email} removed from allowed list"}
 
+# ==================== AI CHAT ENDPOINTS ====================
+
+@api_router.post("/ai/chat")
+async def ai_chat(chat_request: ChatRequest, user: User = Depends(get_current_user)):
+    """AI Chat endpoint using Gemini/OpenAI"""
+    try:
+        # Get API key from settings or use default
+        settings_doc = await db.app_settings.find_one({"setting_id": "global"}, {"_id": 0})
+        
+        # Check for custom API key in settings, otherwise use Emergent LLM key
+        api_key = None
+        ai_provider = "gemini"
+        ai_model = "gemini-2.5-flash"
+        
+        if settings_doc:
+            api_key = settings_doc.get("ai_api_key")
+            if settings_doc.get("ai_provider"):
+                ai_provider = settings_doc["ai_provider"]
+            if settings_doc.get("ai_model"):
+                ai_model = settings_doc["ai_model"]
+        
+        # Use Emergent LLM key as fallback
+        if not api_key:
+            api_key = EMERGENT_LLM_KEY
+        
+        if not api_key:
+            raise HTTPException(status_code=400, detail="No AI API key configured. Please add one in Settings.")
+        
+        # Initialize chat with business context
+        session_id = chat_request.session_id or f"chat_{user.user_id}_{uuid.uuid4().hex[:8]}"
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=session_id,
+            system_message="""You are a helpful AI assistant for Dharani TVS Business Manager. 
+            You help analyze sales data, provide insights on dealership performance, and answer questions about:
+            - Sales metrics and trends
+            - Vehicle sales data analysis
+            - Service department performance
+            - Inventory management
+            - Executive/staff performance
+            Be concise and helpful. Use Indian Rupee (₹) for currency."""
+        ).with_model(ai_provider, ai_model)
+        
+        # Send message and get response
+        user_message = UserMessage(text=chat_request.message)
+        response = await chat.send_message(user_message)
+        
+        # Store chat history in database
+        await db.chat_history.insert_one({
+            "user_id": user.user_id,
+            "session_id": session_id,
+            "user_message": chat_request.message,
+            "ai_response": response,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {"response": response, "session_id": session_id}
+        
+    except Exception as e:
+        logger.error(f"AI chat error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.put("/settings/ai")
+async def update_ai_settings(
+    ai_api_key: Optional[str] = Query(None),
+    ai_provider: Optional[str] = Query("gemini"),
+    ai_model: Optional[str] = Query("gemini-2.5-flash"),
+    user: User = Depends(get_current_user)
+):
+    """Update AI configuration settings"""
+    update_fields = {}
+    if ai_api_key is not None:
+        update_fields["ai_api_key"] = ai_api_key
+    if ai_provider:
+        update_fields["ai_provider"] = ai_provider
+    if ai_model:
+        update_fields["ai_model"] = ai_model
+    update_fields["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    await db.app_settings.update_one(
+        {"setting_id": "global"},
+        {"$set": update_fields},
+        upsert=True
+    )
+    return {"message": "AI settings updated"}
+
 # ==================== GOOGLE SHEETS DATA ENDPOINTS ====================
 
 @api_router.get("/sheets/sales-data")
