@@ -106,7 +106,7 @@ TWILIO_PHONE_NUMBER=
 
 ### Frontend (.env)
 ```
-REACT_APP_BACKEND_URL=https://dealer-insights-2.preview.emergentagent.com
+REACT_APP_BACKEND_URL=https://sales-insights-86.preview.emergentagent.com
 ```
 
 ## 📱 Twilio WhatsApp Integration (Optional)
@@ -151,7 +151,7 @@ REACT_APP_BACKEND_URL=https://dealer-insights-2.preview.emergentagent.com
 ## 🧪 Testing
 
 ### Test Login
-1. Go to: https://dealer-insights-2.preview.emergentagent.com
+1. Go to: https://sales-insights-86.preview.emergentagent.com
 2. Enter any phone number (e.g., +919876543210)
 3. Click "Send OTP"
 4. Enter any 6-digit code (e.g., 123456)
