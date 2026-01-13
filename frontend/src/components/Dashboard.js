@@ -62,7 +62,10 @@ const Dashboard = ({ user, onLogout }) => {
   const calculateStats = () => {
     const totalSold = salesData.length;
     const totalRevenue = salesData.reduce((sum, record) => {
-      const cost = parseFloat(String(record['Vehicle Cost (₹)'] || '0').replace(/[^0-9.]/g, ''));
+      // Handle different column name encodings for Vehicle Cost
+      const costField = record['Vehicle Cost (₹)'] || record['Vehicle Cost (â₹)'] || 
+                       Object.entries(record).find(([key]) => key.toLowerCase().includes('vehicle cost'))?.[1] || '0';
+      const cost = parseFloat(String(costField).replace(/[^0-9.]/g, ''));
       return sum + (isNaN(cost) ? 0 : cost);
     }, 0);
 
