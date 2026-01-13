@@ -128,6 +128,9 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/global" element={
+        <ProtectedRoute><GlobalDashboard /></ProtectedRoute>
+      } />
       <Route path="/dashboard" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
       } />
