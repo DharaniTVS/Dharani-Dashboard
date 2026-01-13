@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './components/Login';
 import Sales from './components/Sales';
+import Enquiries from './components/Enquiries';
+import Bookings from './components/Bookings';
 import Service from './components/Service';
 import Inventory from './components/Inventory';
 import './App.css';
