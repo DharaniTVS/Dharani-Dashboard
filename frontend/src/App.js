@@ -72,7 +72,7 @@ function App() {
           />
           <Route
             path="/"
-            element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+            element={user ? <Sales user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
           <Route
             path="/service"
