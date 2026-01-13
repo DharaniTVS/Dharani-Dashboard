@@ -3,10 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import Analytics from './components/Analytics';
-import AIChat from './components/AIChat';
-import Commitments from './components/Commitments';
-import Plans from './components/Plans';
+import Service from './components/Service';
+import Inventory from './components/Inventory';
 import './App.css';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -58,8 +56,8 @@ function App() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-gray-900 text-xl">Loading...</div>
       </div>
     );
   }
@@ -77,20 +75,12 @@ function App() {
             element={user ? <Dashboard user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
           <Route
-            path="/analytics"
-            element={user ? <Analytics user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+            path="/service"
+            element={user ? <Service user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
           <Route
-            path="/chat"
-            element={user ? <AIChat user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/commitments"
-            element={user ? <Commitments user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/plans"
-            element={user ? <Plans user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
+            path="/inventory"
+            element={user ? <Inventory user={user} onLogout={handleLogout} /> : <Navigate to="/login" />}
           />
         </Routes>
       </BrowserRouter>
