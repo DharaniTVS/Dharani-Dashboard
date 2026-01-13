@@ -3,62 +3,151 @@ import axios from 'axios';
 import Sidebar from './Sidebar';
 import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
-import { Button } from './ui/button';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Users, DollarSign, Activity, ArrowUpRight, ArrowDownRight, Download, Filter } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, Users, ShoppingCart, CheckCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const Dashboard = ({ user, onLogout }) => {
-  const [overview, setOverview] = useState(null);
+  const [salesData, setSalesData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBranch, setSelectedBranch] = useState('Bhavani');
+  const [stats, setStats] = useState({
+    totalEnquiries: 0,
+    totalBookings: 0,
+    totalSold: 0,
+    conversionRate: 0
+  });
 
   useEffect(() => {
-    fetchOverview();
+    fetchData();
+    
+    // Listen for branch changes
+    const handleBranchChange = (event) => {
+      setSelectedBranch(event.detail);
+    };
+    
+    window.addEventListener('branchChanged', handleBranchChange);
+    
+    const savedBranch = localStorage.getItem('selectedBranch');
+    if (savedBranch) {
+      setSelectedBranch(savedBranch);
+    }
+    
+    return () => {
+      window.removeEventListener('branchChanged', handleBranchChange);
+    };
   }, []);
 
-  const fetchOverview = async () => {
+  useEffect(() => {
+    if (salesData.length > 0) {
+      calculateStats();
+    }
+  }, [salesData, selectedBranch]);
+
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API}/dashboard/overview`);
-      setOverview(response.data);
+      const response = await axios.get(`${API}/sheets/sales-data`);
+      setSalesData(response.data.data || []);
     } catch (error) {
-      console.error('Failed to fetch overview:', error);
+      console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex bg-gray-50">
-        <Sidebar user={user} onLogout={onLogout} />
-        <div className="flex-1 p-8">
-          <div className="text-gray-600">Loading...</div>
-        </div>
-      </div>
-    );
-  }
+  const calculateStats = () => {
+    let filtered = salesData;
+    
+    // Filter by selected branch
+    if (selectedBranch && selectedBranch !== 'All') {
+      filtered = salesData.filter(record => record['Location'] === selectedBranch);
+    }
 
-  const StatCard = ({ title, value, change, icon: Icon, color, trend }) => (
+    const totalEnquiries = filtered.length;
+    const totalBookings = filtered.filter(r => r['Booking Status'] === 'Done' || r['Delivery Status'] === 'Done').length;
+    const totalSold = filtered.filter(r => r['Delivery Status'] === 'Done').length;
+    const conversionRate = totalEnquiries > 0 ? ((totalSold / totalEnquiries) * 100).toFixed(1) : 0;
+
+    setStats({
+      totalEnquiries,
+      totalBookings,
+      totalSold,
+      conversionRate
+    });
+  };
+
+  const getExecutivePerformance = () => {
+    let filtered = salesData;
+    if (selectedBranch && selectedBranch !== 'All') {
+      filtered = salesData.filter(record => record['Location'] === selectedBranch);
+    }
+
+    const executiveMap = {};
+    filtered.forEach(record => {
+      const exec = record['Executive Name'] || 'Unknown';
+      if (!executiveMap[exec]) {
+        executiveMap[exec] = { name: exec, enquiries: 0, sold: 0 };
+      }
+      executiveMap[exec].enquiries += 1;
+      if (record['Delivery Status'] === 'Done') {
+        executiveMap[exec].sold += 1;
+      }
+    });
+
+    return Object.values(executiveMap).sort((a, b) => b.sold - a.sold).slice(0, 5);
+  };
+
+  const getModelDistribution = () => {
+    let filtered = salesData;
+    if (selectedBranch && selectedBranch !== 'All') {
+      filtered = salesData.filter(record => record['Location'] === selectedBranch);
+    }
+
+    const modelMap = {};
+    filtered.forEach(record => {
+      const model = record['Vehicle Model'] || 'Unknown';
+      modelMap[model] = (modelMap[model] || 0) + 1;
+    });
+
+    return Object.entries(modelMap)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  };
+
+  const getEnquiryTypeDistribution = () => {
+    let filtered = salesData;
+    if (selectedBranch && selectedBranch !== 'All') {
+      filtered = salesData.filter(record => record['Location'] === selectedBranch);
+    }
+
+    const typeMap = {};
+    filtered.forEach(record => {
+      const type = record['Enquiry Type'] || 'General';
+      typeMap[type] = (typeMap[type] || 0) + 1;
+    });
+
+    return Object.entries(typeMap).map(([name, value]) => ({ name, value }));
+  };
+
+  const StatCard = ({ title, value, subtitle, icon: Icon, color, trend }) => (
     <Card className="p-6 bg-white rounded-xl border border-gray-200 card-hover">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
           <h3 className="text-3xl font-bold text-gray-900 mb-2">{value}</h3>
-          <div className="flex items-center gap-1">
-            {trend === 'up' ? (
-              <ArrowUpRight className="w-4 h-4 text-green-600" />
-            ) : (
-              <ArrowDownRight className="w-4 h-4 text-red-600" />
-            )}
-            <span className={`text-sm font-medium ${
-              trend === 'up' ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {change}
-            </span>
-            <span className="text-sm text-gray-500">vs last period</span>
-          </div>
+          {subtitle && (
+            <div className="flex items-center gap-1">
+              {trend === 'up' ? (
+                <ArrowUpRight className="w-4 h-4 text-green-600" />
+              ) : trend === 'down' ? (
+                <ArrowDownRight className="w-4 h-4 text-red-600" />
+              ) : null}
+              <span className="text-sm text-gray-600">{subtitle}</span>
+            </div>
+          )}
         </div>
         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
           <Icon className="w-6 h-6 text-white" />
@@ -67,32 +156,31 @@ const Dashboard = ({ user, onLogout }) => {
     </Card>
   );
 
-  const totalBookings = overview?.branches?.reduce((sum, b) => sum + b.bookings, 0) || 0;
-  const totalDeliveries = overview?.branches?.reduce((sum, b) => sum + b.deliveries, 0) || 0;
-  const totalRevenue = overview?.branches?.reduce((sum, b) => sum + b.revenue, 0) || 0;
+  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
+
+  if (loading) {
+    return (
+      <div className="flex bg-gray-50">
+        <Sidebar user={user} onLogout={onLogout} />
+        <div className="flex-1 p-8">
+          <div className="text-gray-600">Loading dashboard...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex bg-gray-50" data-testid="dashboard">
+    <div className="flex bg-gray-50" data-testid="dashboard-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-600 mt-1">Welcome back, {user.name}! Here's what's happening today.</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" className="gap-2">
-                <Filter className="w-4 h-4" />
-                Filter
-              </Button>
-              <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-                <Download className="w-4 h-4" />
-                Export
-              </Button>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Sales Dashboard</h1>
+            <p className="text-sm text-gray-600 mt-1">
+              Overview of {selectedBranch} branch performance and analytics
+            </p>
           </div>
         </div>
 
@@ -100,131 +188,104 @@ const Dashboard = ({ user, onLogout }) => {
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard
-              title="Total Bookings"
-              value={totalBookings}
-              change="+15.3%"
-              icon={Activity}
-              color="bg-gradient-to-br from-indigo-500 to-indigo-600"
-              trend="up"
-              data-testid="bookings-card"
-            />
-            <StatCard
-              title="Deliveries"
-              value={totalDeliveries}
-              change="+12.5%"
-              icon={TrendingUp}
-              color="bg-gradient-to-br from-green-500 to-green-600"
-              trend="up"
-              data-testid="deliveries-card"
-            />
-            <StatCard
-              title="Total Revenue"
-              value={`₹${(totalRevenue / 100000).toFixed(1)}L`}
-              change="+8.2%"
-              icon={DollarSign}
-              color="bg-gradient-to-br from-purple-500 to-purple-600"
-              trend="up"
-              data-testid="revenue-card"
-            />
-            <StatCard
-              title="Pending Items"
-              value={(overview?.finance_stats?.pending || 0) + (overview?.service_stats?.pending || 0)}
-              change="-3.1%"
+              title="Total Enquiries"
+              value={stats.totalEnquiries}
+              subtitle="All customer enquiries"
               icon={Users}
+              color="bg-gradient-to-br from-blue-500 to-blue-600"
+            />
+            <StatCard
+              title="Total Bookings"
+              value={stats.totalBookings}
+              subtitle="Confirmed bookings"
+              icon={ShoppingCart}
+              color="bg-gradient-to-br from-purple-500 to-purple-600"
+            />
+            <StatCard
+              title="Total Sold"
+              value={stats.totalSold}
+              subtitle="Delivered vehicles"
+              icon={CheckCircle}
+              color="bg-gradient-to-br from-green-500 to-green-600"
+            />
+            <StatCard
+              title="Conversion Rate"
+              value={`${stats.conversionRate}%`}
+              subtitle="Enquiry to sold"
+              icon={TrendingUp}
               color="bg-gradient-to-br from-orange-500 to-orange-600"
-              trend="down"
-              data-testid="pending-card"
+              trend="up"
             />
           </div>
 
-          {/* Branch Performance Chart */}
-          <Card className="p-6 bg-white rounded-xl border border-gray-200 mb-8" data-testid="branch-performance-chart">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-bold text-gray-900">Branch Performance</h2>
-                <p className="text-sm text-gray-600">Bookings and deliveries by branch</p>
-              </div>
-              <Button variant="outline" size="sm">View Details</Button>
-            </div>
-            {overview?.branches && (
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={overview.branches}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                  <XAxis 
-                    dataKey="branch_name" 
-                    stroke="#9ca3af" 
-                    style={{ fontSize: '12px', fontFamily: 'Inter' }}
-                  />
-                  <YAxis 
-                    stroke="#9ca3af" 
-                    style={{ fontSize: '12px', fontFamily: 'Inter' }}
-                  />
+          {/* Charts Row 1 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Executive Performance */}
+            <Card className="p-6 bg-white rounded-xl border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Top Executives Performance</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={getExecutivePerformance()}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="name" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                  <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
                   <Tooltip
-                    contentStyle={{ 
-                      background: '#fff', 
-                      border: '1px solid #e5e7eb', 
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    contentStyle={{
+                      background: '#fff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px'
                     }}
-                    labelStyle={{ color: '#111827', fontWeight: 600 }}
                   />
-                  <Legend 
-                    wrapperStyle={{ fontSize: '12px', fontFamily: 'Inter' }}
-                  />
-                  <Bar dataKey="bookings" fill="#6366f1" radius={[8, 8, 0, 0]} name="Bookings" />
-                  <Bar dataKey="deliveries" fill="#10b981" radius={[8, 8, 0, 0]} name="Deliveries" />
+                  <Legend />
+                  <Bar dataKey="enquiries" fill="#6366f1" name="Enquiries" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="sold" fill="#10b981" name="Sold" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            )}
+            </Card>
+
+            {/* Model Distribution */}
+            <Card className="p-6 bg-white rounded-xl border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-4">Top 5 Models</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={getModelDistribution()}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {getModelDistribution().map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+
+          {/* Enquiry Type Distribution */}
+          <Card className="p-6 bg-white rounded-xl border border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Enquiry Type Distribution</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart data={getEnquiryTypeDistribution()} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis type="number" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <YAxis dataKey="name" type="category" stroke="#9ca3af" style={{ fontSize: '12px' }} />
+                <Tooltip
+                  contentStyle={{
+                    background: '#fff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Bar dataKey="value" fill="#8b5cf6" radius={[0, 8, 8, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </Card>
-
-          {/* Branch Cards Grid */}
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Branch Overview</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {overview?.branches?.map((branch) => (
-              <Card
-                key={branch.branch_id}
-                className="p-6 bg-white rounded-xl border border-gray-200 card-hover"
-                data-testid={`branch-card-${branch.branch_id}`}
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">{branch.branch_name}</h3>
-                    <p className="text-sm text-gray-600">Branch ID: {branch.branch_id}</p>
-                  </div>
-                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-indigo-600" />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Bookings</span>
-                    <span className="text-sm font-semibold text-gray-900">{branch.bookings}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
-                    <span className="text-sm text-gray-600">Deliveries</span>
-                    <span className="text-sm font-semibold text-gray-900">{branch.deliveries}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <span className="text-sm text-gray-600">Revenue</span>
-                    <span className="text-sm font-semibold text-indigo-600">
-                      ₹{(branch.revenue / 100000).toFixed(2)}L
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {overview?.demo_mode && (
-            <div className="mt-8 bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-amber-800 text-sm font-medium">
-                ⚠️ Demo Mode: Connect your Google Sheets for live data. Make sure the sheet is set to "Anyone with the link can view".
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
