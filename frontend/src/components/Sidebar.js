@@ -33,11 +33,11 @@ const Sidebar = ({ user, onLogout }) => {
   };
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 min-h-screen flex flex-col" data-testid="sidebar">
+    <div className="w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 min-h-screen flex flex-col" data-testid="sidebar">
       {/* Logo */}
-      <div className="p-6 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900">Dharani TVS</h2>
-        <p className="text-sm text-indigo-600 font-medium">AI Business Manager</p>
+      <div className="p-6 border-b border-gray-200 dark:border-slate-700">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white">Dharani TVS</h2>
+        <p className="text-sm text-indigo-600 dark:text-indigo-400 font-medium">AI Business Manager</p>
       </div>
 
       {/* User Info */}
