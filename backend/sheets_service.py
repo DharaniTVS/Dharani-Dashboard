@@ -21,7 +21,9 @@ class SheetsService:
             try:
                 import requests
                 url = f"{self.base_url}?format=csv&gid=0"
+                logger.info(f"Attempting to connect to: {url}")
                 response = requests.get(url, timeout=15, allow_redirects=True)
+                logger.info(f"Response: status={response.status_code}, length={len(response.text)}")
                 
                 if response.status_code == 200 and len(response.text) > 100:
                     lines = response.text.strip().split('\n')
@@ -29,6 +31,7 @@ class SheetsService:
                         return True, len(lines) - 1
                 return False, response.status_code
             except Exception as e:
+                logger.error(f"Exception during connect: {e}")
                 return False, str(e)
         
         # Run sync function in thread pool
