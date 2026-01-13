@@ -56,6 +56,7 @@ const Inventory = ({ user, onLogout }) => {
   return (
     <div className="flex bg-gray-50" data-testid="inventory-page">
       <Sidebar user={user} onLogout={onLogout} />
+      <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
         <div className="bg-white border-b border-gray-200 px-8 py-6">
