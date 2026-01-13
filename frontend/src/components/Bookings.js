@@ -5,7 +5,7 @@ import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Search, Filter, Download, ShoppingCart } from 'lucide-react';
+import { Search, Filter, Download, ShoppingCart, Calendar } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -18,6 +18,8 @@ const Bookings = ({ user, onLogout }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
   const [selectedExecutive, setSelectedExecutive] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [executives, setExecutives] = useState([]);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ const Bookings = ({ user, onLogout }) => {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, selectedExecutive, salesData]);
+  }, [searchTerm, selectedExecutive, startDate, endDate, salesData]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,7 +51,6 @@ const Bookings = ({ user, onLogout }) => {
       const response = await axios.get(`${API}/sheets/sales-data`, {
         params: { branch: selectedBranch }
       });
-      // For bookings, we show data (in real scenario, filter by booking status)
       setSalesData(response.data.data || []);
       setFilteredData(response.data.data || []);
     } catch (error) {
@@ -86,12 +87,32 @@ const Bookings = ({ user, onLogout }) => {
       filtered = filtered.filter(record => record['Executive Name'] === selectedExecutive);
     }
 
+    // Date filter
+    if (startDate && endDate) {
+      filtered = filtered.filter(record => {
+        const saleDate = record['Sales Date'] || '';
+        if (saleDate) {
+          try {
+            const recordDate = new Date(saleDate);
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            return recordDate >= start && recordDate <= end;
+          } catch (e) {
+            return true;
+          }
+        }
+        return true;
+      });
+    }
+
     setFilteredData(filtered);
   };
 
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedExecutive('all');
+    setStartDate('');
+    setEndDate('');
   };
 
   const exportToCSV = () => {
@@ -146,8 +167,9 @@ const Bookings = ({ user, onLogout }) => {
               <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="lg:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -162,6 +184,7 @@ const Bookings = ({ user, onLogout }) => {
                 </div>
               </div>
 
+              {/* Executive Filter */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Executive</label>
                 <Select value={selectedExecutive} onValueChange={setSelectedExecutive}>
@@ -176,19 +199,54 @@ const Bookings = ({ user, onLogout }) => {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Reset Button */}
+              <div className="flex items-end">
+                <Button 
+                  variant="outline" 
+                  onClick={resetFilters}
+                  className="w-full text-gray-700 border-gray-300 hover:bg-gray-100"
+                  data-testid="reset-filters"
+                >
+                  Reset Filters
+                </Button>
+              </div>
+            </div>
+
+            {/* Date Range Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  Start Date
+                </label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="bg-white text-gray-900 border-gray-300"
+                  data-testid="start-date"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Calendar className="w-4 h-4 inline mr-1" />
+                  End Date
+                </label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="bg-white text-gray-900 border-gray-300"
+                  data-testid="end-date"
+                />
+              </div>
             </div>
 
             <div className="mt-4 flex items-center justify-between">
               <p className="text-sm text-gray-600">
                 Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> bookings
               </p>
-              <Button 
-                variant="outline" 
-                onClick={resetFilters}
-                className="text-gray-700 border-gray-300 hover:bg-gray-100"
-              >
-                Reset Filters
-              </Button>
             </div>
           </Card>
 
@@ -240,7 +298,9 @@ const Bookings = ({ user, onLogout }) => {
                           </span>
                         </td>
                         <td className="py-4 px-6 text-sm text-gray-600">{record['Executive Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900 font-medium">₹{record['Downpayment (₹)'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900 font-medium">
+                          ₹{record['Downpayment (₹)'] || Object.entries(record).find(([key]) => key.toLowerCase().includes('downpayment'))?.[1] || '-'}
+                        </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                             record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
