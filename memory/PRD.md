@@ -1,0 +1,181 @@
+# Dharani TVS AI Business Manager - Product Requirements Document
+
+## Original Problem Statement
+Build a "Dharani TVS AI Business Manager," a multi-branch digital command center for a 5-branch TVS dealership. The application should function as a SaaS analytics dashboard, converting data from Google Sheets into real-time insights.
+
+## Project Overview
+- **App Name**: Dharani TVS AI Business Manager
+- **Tech Stack**: FastAPI (Python), React, MongoDB, Google Sheets
+- **Purpose**: Multi-branch dealership analytics dashboard with AI assistance
+
+## User Personas
+1. **Dealership Owner/Manager**: Needs high-level KPIs and cross-branch comparison
+2. **Branch Manager**: Needs branch-specific sales, service, and inventory data
+3. **Sales Executive**: Needs enquiry and booking tracking
+
+## Core Requirements
+
+### 1. Dashboard Module ✅
+- KPI cards with trend indicators (Total Revenue, AOV, Conversion Rate, Units Sold, Enquiries)
+- Revenue Trend Area Chart (weekly performance)
+- Sales by Category Donut Chart
+- Executive Performance Bar Chart
+- Top Selling Models list with progress bars
+
+### 2. Sales Module ✅
+- **Enquiries Page**: Data table with search, executive filter, date filter
+- **Bookings Page**: Data table with search, executive filter, date filter
+- **Sold Page**: Data table with search, executive filter, date filter
+- CSV Export functionality on all pages
+
+### 3. Service Module ✅
+- PDF Upload (S601 Service Advisor/Technician Productivity Report)
+- Auto-extract table data from PDF
+- Display technician productivity metrics
+- Date-based report viewing
+
+### 4. Inventory Module ✅
+- Read Stock sheet (gid=1) from each branch's Google Sheet
+- Display inventory data in table format
+- Search functionality
+
+### 5. Settings Module ✅
+- **AI Configuration**: API key input, provider selection (Gemini/OpenAI/Anthropic), model selection
+- **Dark Mode**: Toggle for dark/light theme
+- **Access Control**: Email whitelist for app access
+
+### 6. AI Assistant ✅
+- Floating chat button
+- Integration with Gemini/OpenAI/Anthropic
+- Configurable via Settings page
+- Context-aware responses for dealership queries
+
+### 7. Authentication ✅
+- Google OAuth via Emergent Auth
+- Session-based authentication
+- Email whitelist for access control
+
+## Data Sources
+
+### Google Sheets (Per Branch)
+| Branch | Sheet ID |
+|--------|----------|
+| Kumarapalayam | 1sVI5CrCVXqT4ZgiEHz-j2LSA-sLHTIE_DcqoRk8UvCM |
+| Kavindapadi | 15W3aqY11b5HdB3KGcurs0MYO_h9r3qtQgQIQSKDjzqo |
+| Ammapettai | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
+| Anthiyur | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
+| Bhavani | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
+
+### Sheet Structure
+- **Sales (gid=0)**: Customer Name, Mobile No, Vehicle Model, Category, Executive Name, Sales Date, Vehicle Cost, etc.
+- **Stock (gid=1)**: Inventory data
+- **Service (gid=2)**: Service records
+
+## What's Been Implemented
+
+### December 2025 - January 2026
+
+#### Backend (FastAPI)
+- ✅ Multi-branch Google Sheets integration
+- ✅ Google OAuth authentication (Emergent Auth)
+- ✅ Settings API (dark mode, email whitelist, AI config)
+- ✅ AI Chat endpoint with Gemini/OpenAI/Anthropic support
+- ✅ Service PDF upload and extraction
+- ✅ Sales, Stock, Service data endpoints
+
+#### Frontend (React)
+- ✅ Modern dashboard with KPI cards and trend indicators
+- ✅ Revenue Trend Area Chart
+- ✅ Sales by Category Donut Chart
+- ✅ Executive Performance Bar Chart
+- ✅ Top Selling Models list
+- ✅ Enquiries page with date filters
+- ✅ Bookings page with date filters
+- ✅ Sold page with filters
+- ✅ Service page with PDF upload
+- ✅ Inventory page
+- ✅ Settings page with AI configuration
+- ✅ Google Auth login
+- ✅ Branch selector in sidebar
+- ✅ "AI Business Manager" branding
+
+## Prioritized Backlog
+
+### P0 (Critical)
+- ✅ Multi-branch data support
+- ✅ Dashboard with modern charts
+- ✅ Date filters on Enquiries/Bookings
+- ✅ AI Chat integration
+- ✅ Settings for AI API key
+
+### P1 (High Priority)
+- [ ] PDF Export functionality
+- [ ] Real-time sync (polling mechanism)
+- [ ] Service module refinement (better PDF parsing)
+
+### P2 (Medium Priority)
+- [ ] Role-Based Access Control (RBAC)
+- [ ] WhatsApp/Twilio integration for staff prompts
+- [ ] Service appointment booking
+
+### P3 (Low Priority)
+- [ ] Mobile-responsive optimization
+- [ ] Push notifications
+- [ ] Data caching for performance
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/session` - Exchange session_id for session_token
+- `GET /api/auth/me` - Get current user
+- `POST /api/auth/logout` - Logout
+
+### Settings
+- `GET /api/settings` - Get app settings
+- `PUT /api/settings` - Update settings
+- `PUT /api/settings/ai` - Update AI configuration
+- `POST /api/settings/add-email` - Add to whitelist
+- `DELETE /api/settings/remove-email` - Remove from whitelist
+
+### Data
+- `GET /api/sheets/sales-data` - Get sales data (with filters)
+- `GET /api/sheets/stock-data` - Get inventory data
+- `GET /api/sheets/service-data` - Get service data
+- `GET /api/sheets/branches` - Get list of branches
+- `GET /api/sheets/executives` - Get executives list
+
+### Service
+- `POST /api/service/upload-pdf` - Upload S601 PDF
+- `GET /api/service/reports` - Get service reports
+
+### AI
+- `POST /api/ai/chat` - AI chat endpoint
+
+## File Structure
+```
+/app
+├── backend/
+│   ├── server.py           # FastAPI routes
+│   ├── sheets_service.py   # Google Sheets integration
+│   ├── requirements.txt
+│   └── .env
+└── frontend/
+    └── src/
+        ├── App.js
+        └── components/
+            ├── Dashboard.js
+            ├── Sales.js
+            ├── Enquiries.js
+            ├── Bookings.js
+            ├── Service.js
+            ├── Inventory.js
+            ├── Settings.js
+            ├── Sidebar.js
+            ├── Login.js
+            └── FloatingAI.js
+```
+
+## Testing Credentials
+- **Session Token**: `ui_test_session_2024`
+- **Test Email**: `test@dharanitvs.com`
+- **Preview URL**: https://sales-insights-86.preview.emergentagent.com
