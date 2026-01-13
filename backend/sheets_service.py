@@ -9,9 +9,21 @@ logger = logging.getLogger(__name__)
 
 class SheetsService:
     def __init__(self):
-        self.sheet_id = os.getenv("GOOGLE_SHEETS_ID")
         self.connected = False
-        self.base_url = f"https://docs.google.com/spreadsheets/d/{self.sheet_id}/export"
+        self._sheet_id = None
+        self._base_url = None
+    
+    @property
+    def sheet_id(self):
+        if self._sheet_id is None:
+            self._sheet_id = os.getenv("GOOGLE_SHEETS_ID")
+        return self._sheet_id
+    
+    @property
+    def base_url(self):
+        if self._base_url is None:
+            self._base_url = f"https://docs.google.com/spreadsheets/d/{self.sheet_id}/export"
+        return self._base_url
     
     async def connect(self):
         """Test connection to Google Sheets using public export"""
