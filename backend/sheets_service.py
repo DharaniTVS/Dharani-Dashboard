@@ -16,29 +16,20 @@ class SheetsService:
     async def connect(self):
         """Test connection to Google Sheets using public export"""
         try:
-            # Create client with explicit configuration
-            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-            async with httpx.AsyncClient(
-                follow_redirects=True, 
-                timeout=20.0,
-                limits=limits
-            ) as client:
-                url = f"{self.base_url}?format=csv&gid=0"
-                response = await client.get(url)
-                
-                # Check if we got valid CSV data
-                if response.status_code == 200 and len(response.text) > 100:
-                    lines = response.text.strip().split('\n')
-                    if len(lines) > 1 and ',' in lines[0]:
-                        logger.info(f"✓ Connected to Google Sheets: {len(lines)-1} data rows")
-                        self.connected = True
-                        return True
-                
-                logger.error(f"Sheet connection failed: HTTP {response.status_code}, response length: {len(response.text)}")
-                self.connected = False
-                return False
-        except httpx.TimeoutException:
-            logger.error("Google Sheets connection timeout")
+            # Use requests library which handles Google redirects better
+            import requests
+            url = f"{self.base_url}?format=csv&gid=0"
+            response = requests.get(url, timeout=15, allow_redirects=True)
+            
+            # Check if we got valid CSV data
+            if response.status_code == 200 and len(response.text) > 100:
+                lines = response.text.strip().split('\n')
+                if len(lines) > 1 and ',' in lines[0]:
+                    logger.info(f"✓ Connected to Google Sheets: {len(lines)-1} data rows")
+                    self.connected = True
+                    return True
+            
+            logger.error(f"Sheet connection failed: HTTP {response.status_code}")
             self.connected = False
             return False
         except Exception as e:
