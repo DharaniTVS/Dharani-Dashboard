@@ -2,7 +2,6 @@ import os
 import csv
 from typing import List, Dict, Any, Optional
 import logging
-import httpx
 import io
 
 logger = logging.getLogger(__name__)
@@ -10,32 +9,40 @@ logger = logging.getLogger(__name__)
 class SheetsService:
     def __init__(self):
         self.connected = False
-        self._sheet_id = None
-        self._base_url = None
+        
+        # Multi-branch Google Sheets configuration
+        self.BRANCH_SHEETS = {
+            'Kumarapalayam': '1sVI5CrCVXqT4ZgiEHz-j2LSA-sLHTIE_DcqoRk8UvCM',
+            'Kavindapadi': '15W3aqY11b5HdB3KGcurs0MYO_h9r3qtQgQIQSKDjzqo',
+            'Ammapettai': '1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I',
+            'Anthiyur': '1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I',
+            'Bhavani': '1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I'
+        }
+        
+        # Sheet GIDs for different data types within each branch sheet
+        self.SHEET_GIDS = {
+            "Sales": 0,
+            "Stock": 1,  # For Inventory
+            "Service": 2,
+            "Leads": 3
+        }
     
-    @property
-    def sheet_id(self):
-        if self._sheet_id is None:
-            self._sheet_id = os.getenv("GOOGLE_SHEETS_ID")
-        return self._sheet_id
-    
-    @property
-    def base_url(self):
-        if self._base_url is None:
-            self._base_url = f"https://docs.google.com/spreadsheets/d/{self.sheet_id}/export"
-        return self._base_url
+    def get_sheet_url(self, sheet_id: str, gid: int = 0) -> str:
+        """Generate CSV export URL for a Google Sheet"""
+        return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     
     async def connect(self):
-        """Test connection to Google Sheets using public export"""
+        """Test connection to Google Sheets"""
         import asyncio
         
         def sync_connect():
             try:
                 import requests
-                url = f"{self.base_url}?format=csv&gid=0"
-                logger.info(f"Attempting to connect to: {url}")
+                # Test connection with first branch
+                first_branch = list(self.BRANCH_SHEETS.values())[0]
+                url = self.get_sheet_url(first_branch, 0)
+                logger.info(f"Testing connection to: {url}")
                 response = requests.get(url, timeout=15, allow_redirects=True)
-                logger.info(f"Response: status={response.status_code}, length={len(response.text)}")
                 
                 if response.status_code == 200 and len(response.text) > 100:
                     lines = response.text.strip().split('\n')
@@ -46,7 +53,6 @@ class SheetsService:
                 logger.error(f"Exception during connect: {e}")
                 return False, str(e)
         
-        # Run sync function in thread pool
         result = await asyncio.to_thread(sync_connect)
         if result[0]:
             logger.info(f"✓ Connected to Google Sheets: {result[1]} data rows")
@@ -57,112 +63,102 @@ class SheetsService:
             self.connected = False
             return False
     
-    # Sheet name to GID mapping (you may need to adjust these)
-    SHEET_GIDS = {
-        "Sales Master": 0,
-        "Leads": 1,
-        "Finance Cases": 2,
-        "Discounts & DC": 3,
-        "Service Job Cards": 4,
-        "Technicians": 5,
-        "Inventory": 6,
-        "Payments": 7,
-        "Daily Commitments (Sales)": 8,
-        "Daily Commitments (Service)": 9,
-        "Day Plan": 10,
-        "Week Plan": 11,
-        "Month Plan": 12
-    }
-    
-    async def get_worksheet(self, sheet_name: str):
-        """Get sheet GID"""
-        if not self.connected:
-            return None
-        return self.SHEET_GIDS.get(sheet_name, 0)
-    
-    async def read_sheet(self, sheet_name: str, gid: int = None) -> List[Dict[str, Any]]:
-        """Read all data from a sheet and return as list of dicts"""
+    async def read_sheet(self, sheet_id: str, gid: int = 0) -> List[Dict[str, Any]]:
+        """Read data from a specific sheet"""
         import asyncio
         
         def sync_read():
             try:
-                sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
-                
                 import requests
-                url = f"{self.base_url}?format=csv&gid={sheet_gid}"
+                url = self.get_sheet_url(sheet_id, gid)
                 response = requests.get(url, timeout=15, allow_redirects=True)
                 
                 if response.status_code == 200:
                     reader = csv.DictReader(io.StringIO(response.text))
                     result = [row for row in reader]
-                    logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
+                    logger.info(f"✓ Read {len(result)} rows from sheet {sheet_id} (gid={gid})")
                     return result
                 else:
-                    logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
+                    logger.error(f"Failed to read sheet: HTTP {response.status_code}")
                     return []
             except Exception as e:
-                logger.error(f"Failed to read '{sheet_name}': {e}")
+                logger.error(f"Failed to read sheet: {e}")
                 return []
         
         return await asyncio.to_thread(sync_read)
     
-    async def write_sheet(self, sheet_name: str, data: List[List[Any]], range_name: str = None):
-        """Write data to a sheet - Note: This requires write permissions"""
-        logger.warning(f"Write operations not supported with CSV export method for sheet {sheet_name}")
-        return False
-    
-    async def get_sales_data(self) -> List[Dict[str, Any]]:
-        """Get sales master data - using first sheet (gid=0)"""
-        # Try to connect if not connected
+    async def get_sales_data(self, branch: str = None) -> List[Dict[str, Any]]:
+        """Get sales data - optionally filtered by branch"""
         if not self.connected:
             await self.connect()
         
-        # If still not connected, try to read anyway
-        return await self.read_sheet("Sales Master", gid=0)
+        all_data = []
+        
+        if branch and branch in self.BRANCH_SHEETS:
+            # Get data from specific branch
+            sheet_id = self.BRANCH_SHEETS[branch]
+            data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Sales", 0))
+            # Add branch name to each record for reference
+            for record in data:
+                record['Branch'] = branch
+            all_data.extend(data)
+        else:
+            # Get data from all branches
+            for branch_name, sheet_id in self.BRANCH_SHEETS.items():
+                data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Sales", 0))
+                for record in data:
+                    record['Branch'] = branch_name
+                all_data.extend(data)
+        
+        return all_data
     
-    async def get_leads_data(self) -> List[Dict[str, Any]]:
-        """Get leads data"""
-        return await self.read_sheet("Leads")
+    async def get_stock_data(self, branch: str = None) -> List[Dict[str, Any]]:
+        """Get inventory/stock data - optionally filtered by branch"""
+        if not self.connected:
+            await self.connect()
+        
+        all_data = []
+        
+        if branch and branch in self.BRANCH_SHEETS:
+            sheet_id = self.BRANCH_SHEETS[branch]
+            data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Stock", 1))
+            for record in data:
+                record['Branch'] = branch
+            all_data.extend(data)
+        else:
+            for branch_name, sheet_id in self.BRANCH_SHEETS.items():
+                data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Stock", 1))
+                for record in data:
+                    record['Branch'] = branch_name
+                all_data.extend(data)
+        
+        return all_data
     
-    async def get_service_data(self) -> List[Dict[str, Any]]:
-        """Get service job cards data"""
-        return await self.read_sheet("Service Job Cards")
+    async def get_service_data(self, branch: str = None) -> List[Dict[str, Any]]:
+        """Get service data - optionally filtered by branch"""
+        if not self.connected:
+            await self.connect()
+        
+        all_data = []
+        
+        if branch and branch in self.BRANCH_SHEETS:
+            sheet_id = self.BRANCH_SHEETS[branch]
+            data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Service", 2))
+            for record in data:
+                record['Branch'] = branch
+            all_data.extend(data)
+        else:
+            for branch_name, sheet_id in self.BRANCH_SHEETS.items():
+                data = await self.read_sheet(sheet_id, self.SHEET_GIDS.get("Service", 2))
+                for record in data:
+                    record['Branch'] = branch_name
+                all_data.extend(data)
+        
+        return all_data
     
-    async def get_finance_cases(self) -> List[Dict[str, Any]]:
-        """Get finance cases data"""
-        return await self.read_sheet("Finance Cases")
-    
-    async def get_discounts(self) -> List[Dict[str, Any]]:
-        """Get discounts and DC data"""
-        return await self.read_sheet("Discounts & DC")
-    
-    async def get_technicians(self) -> List[Dict[str, Any]]:
-        """Get technicians data"""
-        return await self.read_sheet("Technicians")
-    
-    async def get_inventory(self) -> List[Dict[str, Any]]:
-        """Get inventory/spares data"""
-        return await self.read_sheet("Inventory")
-    
-    async def get_daily_commitments_sales(self) -> List[Dict[str, Any]]:
-        """Get daily commitments for sales"""
-        return await self.read_sheet("Daily Commitments (Sales)")
-    
-    async def get_daily_commitments_service(self) -> List[Dict[str, Any]]:
-        """Get daily commitments for service"""
-        return await self.read_sheet("Daily Commitments (Service)")
-    
-    async def get_day_plan(self) -> List[Dict[str, Any]]:
-        """Get day plan data"""
-        return await self.read_sheet("Day Plan")
-    
-    async def get_week_plan(self) -> List[Dict[str, Any]]:
-        """Get week plan data"""
-        return await self.read_sheet("Week Plan")
-    
-    async def get_month_plan(self) -> List[Dict[str, Any]]:
-        """Get month plan data"""
-        return await self.read_sheet("Month Plan")
+    def get_branches(self) -> List[str]:
+        """Get list of all branches"""
+        return list(self.BRANCH_SHEETS.keys())
 
 # Global instance
 sheets_service = SheetsService()

@@ -1,22 +1,23 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Query, Response, Request, UploadFile, File
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import uuid
+import httpx
 from pathlib import Path
-from models import *
-from auth import create_access_token, get_current_user
-from sheets_service import sheets_service
-from twilio.rest import Client
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
-from collections import defaultdict
+from pydantic import BaseModel
+import PyPDF2
+import io
+import re
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# Import sheets_service AFTER loading environment
 from sheets_service import sheets_service
 
 # MongoDB connection
@@ -34,383 +35,217 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Twilio client
-twilio_client = None
-try:
-    if os.getenv("TWILIO_ACCOUNT_SID") and os.getenv("TWILIO_AUTH_TOKEN"):
-        twilio_client = Client(os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN"))
-except Exception as e:
-    logging.warning(f"Twilio not configured: {e}")
+# ==================== PYDANTIC MODELS ====================
 
-# ==================== AUTH ENDPOINTS ====================
+class User(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    picture: Optional[str] = None
+    role: str = "user"
+    branch_id: Optional[str] = None
 
-@api_router.post("/auth/send-otp")
-async def send_otp(request: PhoneRequest):
-    if not twilio_client:
-        return {"status": "pending", "message": "Demo mode: Use any 6-digit code"}
-    try:
-        verification = twilio_client.verify.services(
-            os.getenv("TWILIO_VERIFY_SERVICE")
-        ).verifications.create(to=request.phone, channel="sms")
-        return {"status": verification.status}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+class SessionRequest(BaseModel):
+    session_id: str
 
-@api_router.post("/auth/verify-otp", response_model=TokenResponse)
-async def verify_otp(request: VerifyOTPRequest):
-    is_valid = False
-    if not twilio_client:
-        is_valid = len(request.code) == 6 and request.code.isdigit()
-    else:
-        try:
-            check = twilio_client.verify.services(
-                os.getenv("TWILIO_VERIFY_SERVICE")
-            ).verification_checks.create(to=request.phone, code=request.code)
-            is_valid = check.status == "approved"
-        except:
-            is_valid = False
+class AppSettings(BaseModel):
+    dark_mode: bool = False
+    allowed_emails: List[str] = []
+
+# ==================== AUTH HELPERS ====================
+
+async def get_current_user(request: Request) -> User:
+    """Get current user from session token (cookie or header)"""
+    # Try cookie first
+    session_token = request.cookies.get("session_token")
     
-    if not is_valid:
-        raise HTTPException(status_code=400, detail="Invalid OTP")
+    # Fallback to Authorization header
+    if not session_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
     
-    user_doc = await db.users.find_one({"phone": request.phone}, {"_id": 0})
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Find session
+    session_doc = await db.user_sessions.find_one(
+        {"session_token": session_token},
+        {"_id": 0}
+    )
+    
+    if not session_doc:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
+    # Check expiry
+    expires_at = session_doc.get("expires_at")
+    if expires_at:
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+    
+    # Find user
+    user_doc = await db.users.find_one(
+        {"user_id": session_doc["user_id"]},
+        {"_id": 0}
+    )
+    
     if not user_doc:
-        new_user = User(
-            phone=request.phone,
-            name=request.name or "User",
-            role=request.role or "admin",
-            branch_id=request.branch_id
-        )
-        user_dict = new_user.model_dump()
-        user_dict['created_at'] = user_dict['created_at'].isoformat()
-        await db.users.insert_one(user_dict)
-        user = new_user
-    else:
-        user = User(**user_doc)
+        raise HTTPException(status_code=401, detail="User not found")
     
-    access_token = create_access_token(data={"sub": user.id, "role": user.role})
-    return TokenResponse(access_token=access_token, user=user.model_dump())
+    return User(**user_doc)
+
+# ==================== AUTH ENDPOINTS (Google OAuth) ====================
+
+@api_router.post("/auth/session")
+async def create_session(request: SessionRequest, response: Response):
+    """Exchange session_id from Emergent Auth for session_token"""
+    try:
+        # Call Emergent Auth API to get user data
+        async with httpx.AsyncClient() as client_http:
+            auth_response = await client_http.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": request.session_id},
+                timeout=10.0
+            )
+        
+        if auth_response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid session_id")
+        
+        auth_data = auth_response.json()
+        email = auth_data.get("email")
+        name = auth_data.get("name")
+        picture = auth_data.get("picture")
+        session_token = auth_data.get("session_token")
+        
+        # Check if email is allowed (if whitelist exists)
+        settings_doc = await db.app_settings.find_one({"setting_id": "global"}, {"_id": 0})
+        if settings_doc and settings_doc.get("allowed_emails"):
+            allowed = settings_doc["allowed_emails"]
+            if allowed and email not in allowed:
+                raise HTTPException(status_code=403, detail="Email not authorized. Contact admin.")
+        
+        # Find or create user
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+        
+        if existing_user:
+            user_id = existing_user["user_id"]
+            # Update user info
+            await db.users.update_one(
+                {"user_id": user_id},
+                {"$set": {"name": name, "picture": picture}}
+            )
+        else:
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            new_user = {
+                "user_id": user_id,
+                "email": email,
+                "name": name,
+                "picture": picture,
+                "role": "user",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+            await db.users.insert_one(new_user)
+        
+        # Create session
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        await db.user_sessions.insert_one({
+            "user_id": user_id,
+            "session_token": session_token,
+            "expires_at": expires_at.isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Set cookie
+        response.set_cookie(
+            key="session_token",
+            value=session_token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            path="/",
+            max_age=7 * 24 * 60 * 60  # 7 days
+        )
+        
+        # Get user data
+        user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        
+        return {"user": user_doc, "session_token": session_token}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Session creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
-    return user
+    """Get current authenticated user"""
+    return user.model_dump()
 
-# ==================== DASHBOARD ENDPOINTS ====================
-
-@api_router.get("/dashboard/kpis")
-async def get_dashboard_kpis(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    branch_id: Optional[str] = Query(None),
-    executive_id: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    """Get top KPI cards for dashboard"""
-    try:
-        # Build query filters
-        query = {}
-        if start_date and end_date:
-            date_filter = {"$gte": start_date, "$lte": end_date}
-        else:
-            date_filter = None
-        
-        if branch_id:
-            query["branch_id"] = branch_id
-        if executive_id:
-            query["executive_id"] = executive_id
-        
-        # Count enquiries
-        enquiry_query = query.copy()
-        if date_filter:
-            enquiry_query["enquiry_date"] = date_filter
-        total_enquiries = await db.enquiries.count_documents(enquiry_query)
-        
-        # Count bookings
-        booking_query = query.copy()
-        if date_filter:
-            booking_query["booking_date"] = date_filter
-        total_bookings = await db.bookings.count_documents(booking_query)
-        
-        # Count sales
-        sales_query = query.copy()
-        if date_filter:
-            sales_query["sale_date"] = date_filter
-        total_sales = await db.sales.count_documents(sales_query)
-        
-        # Calculate conversions
-        enquiry_to_booking = round((total_bookings / total_enquiries * 100), 2) if total_enquiries > 0 else 0
-        booking_to_sales = round((total_sales / total_bookings * 100), 2) if total_bookings > 0 else 0
-        
-        return {
-            "total_enquiries": total_enquiries,
-            "total_bookings": total_bookings,
-            "total_sales": total_sales,
-            "enquiry_to_booking_conversion": enquiry_to_booking,
-            "booking_to_sales_conversion": booking_to_sales
-        }
-    except Exception as e:
-        logger.error(f"KPIs error: {e}")
-        return {
-            "total_enquiries": 0,
-            "total_bookings": 0,
-            "total_sales": 0,
-            "enquiry_to_booking_conversion": 0,
-            "booking_to_sales_conversion": 0
-        }
-
-@api_router.get("/dashboard/funnel")
-async def get_funnel_data(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    branch_id: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    """Get funnel chart data: Enquiry → Booking → Sales"""
-    kpis = await get_dashboard_kpis(start_date, end_date, branch_id, None, user)
-    return {
-        "funnel": [
-            {"stage": "Enquiry", "value": kpis["total_enquiries"]},
-            {"stage": "Booking", "value": kpis["total_bookings"]},
-            {"stage": "Sales", "value": kpis["total_sales"]}
-        ]
-    }
-
-@api_router.get("/dashboard/trends")
-async def get_trends(
-    period: str = Query("daily"),  # daily or monthly
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    """Get daily/monthly trend for Enquiries, Bookings, Sales"""
-    try:
-        # This would aggregate by date - simplified version returns sample data
-        return {
-            "trends": [
-                {"date": "2025-01-01", "enquiries": 15, "bookings": 12, "sales": 8},
-                {"date": "2025-01-02", "enquiries": 18, "bookings": 14, "sales": 10},
-                {"date": "2025-01-03", "enquiries": 20, "bookings": 16, "sales": 12}
-            ]
-        }
-    except Exception as e:
-        logger.error(f"Trends error: {e}")
-        return {"trends": []}
-
-@api_router.get("/dashboard/branch-performance")
-async def get_branch_performance(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    """Get branch-wise Enquiry, Booking, Sales for grouped bar chart"""
-    try:
-        branches = await db.branches.find({}, {"_id": 0}).to_list(None)
-        performance = []
-        
-        for branch in branches:
-            enquiries = await db.enquiries.count_documents({"branch_id": branch["id"]})
-            bookings = await db.bookings.count_documents({"branch_id": branch["id"]})
-            sales = await db.sales.count_documents({"branch_id": branch["id"]})
-            
-            performance.append({
-                "branch": branch["name"],
-                "enquiries": enquiries,
-                "bookings": bookings,
-                "sales": sales
-            })
-        
-        return {"performance": performance}
-    except Exception as e:
-        logger.error(f"Branch performance error: {e}")
-        return {"performance": []}
-
-@api_router.get("/dashboard/executive-ranking")
-async def get_executive_ranking(
-    start_date: Optional[str] = Query(None),
-    end_date: Optional[str] = Query(None),
-    branch_id: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    """Get executive-wise performance ranking"""
-    try:
-        query = {}
-        if branch_id:
-            query["branch_id"] = branch_id
-        
-        executives = await db.executives.find(query, {"_id": 0}).to_list(None)
-        ranking = []
-        
-        for exec in executives:
-            sales_count = await db.sales.count_documents({"executive_id": exec["id"]})
-            bookings_count = await db.bookings.count_documents({"executive_id": exec["id"]})
-            enquiries_count = await db.enquiries.count_documents({"executive_id": exec["id"]})
-            
-            ranking.append({
-                "executive": exec["name"],
-                "sales": sales_count,
-                "bookings": bookings_count,
-                "enquiries": enquiries_count,
-                "score": sales_count * 3 + bookings_count * 2 + enquiries_count
-            })
-        
-        ranking.sort(key=lambda x: x["score"], reverse=True)
-        return {"ranking": ranking[:10]}  # Top 10
-    except Exception as e:
-        logger.error(f"Executive ranking error: {e}")
-        return {"ranking": []}
-
-# ==================== ENQUIRIES CRUD ====================
-
-@api_router.get("/enquiries")
-async def list_enquiries(
-    branch_id: Optional[str] = Query(None),
-    executive_id: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
-    user: User = Depends(get_current_user)
-):
-    query = {}
-    if branch_id:
-        query["branch_id"] = branch_id
-    if executive_id:
-        query["executive_id"] = executive_id
-    if status:
-        query["status"] = status
+@api_router.post("/auth/logout")
+async def logout(request: Request, response: Response):
+    """Logout and clear session"""
+    session_token = request.cookies.get("session_token")
     
-    enquiries = await db.enquiries.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return {"enquiries": enquiries}
-
-@api_router.post("/enquiries")
-async def create_enquiry(enquiry: EnquiryCreate, user: User = Depends(get_current_user)):
-    # Enrich with names
-    branch = await db.branches.find_one({"id": enquiry.branch_id}, {"_id": 0})
-    executive = await db.executives.find_one({"id": enquiry.executive_id}, {"_id": 0})
-    model = await db.models.find_one({"id": enquiry.model_id}, {"_id": 0})
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
     
-    new_enquiry = Enquiry(
-        **enquiry.model_dump(),
-        branch_name=branch["name"] if branch else None,
-        executive_name=executive["name"] if executive else None,
-        model_name=model["name"] if model else None
+    response.delete_cookie(
+        key="session_token",
+        path="/",
+        secure=True,
+        samesite="none"
     )
     
-    enquiry_dict = new_enquiry.model_dump()
-    enquiry_dict['created_at'] = enquiry_dict['created_at'].isoformat()
-    await db.enquiries.insert_one(enquiry_dict)
-    
-    return {"message": "Enquiry created", "id": new_enquiry.id}
+    return {"message": "Logged out successfully"}
 
-@api_router.put("/enquiries/{enquiry_id}")
-async def update_enquiry(enquiry_id: str, updates: dict, user: User = Depends(get_current_user)):
-    await db.enquiries.update_one({"id": enquiry_id}, {"$set": updates})
-    return {"message": "Enquiry updated"}
+# ==================== SETTINGS ENDPOINTS ====================
 
-@api_router.delete("/enquiries/{enquiry_id}")
-async def delete_enquiry(enquiry_id: str, user: User = Depends(get_current_user)):
-    await db.enquiries.delete_one({"id": enquiry_id})
-    return {"message": "Enquiry deleted"}
+@api_router.get("/settings")
+async def get_settings(user: User = Depends(get_current_user)):
+    """Get app settings"""
+    settings_doc = await db.app_settings.find_one({"setting_id": "global"}, {"_id": 0})
+    if not settings_doc:
+        return {"dark_mode": False, "allowed_emails": []}
+    return settings_doc
 
-# ==================== BOOKINGS CRUD ====================
-
-@api_router.get("/bookings")
-async def list_bookings(user: User = Depends(get_current_user)):
-    bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return {"bookings": bookings}
-
-@api_router.post("/bookings")
-async def create_booking(booking: BookingCreate, user: User = Depends(get_current_user)):
-    # Enrich with names
-    branch = await db.branches.find_one({"id": booking.branch_id}, {"_id": 0})
-    executive = await db.executives.find_one({"id": booking.executive_id}, {"_id": 0})
-    model = await db.models.find_one({"id": booking.model_id}, {"_id": 0})
-    
-    new_booking = Booking(
-        **booking.model_dump(),
-        branch_name=branch["name"] if branch else None,
-        executive_name=executive["name"] if executive else None,
-        model_name=model["name"] if model else None
+@api_router.put("/settings")
+async def update_settings(settings: AppSettings, user: User = Depends(get_current_user)):
+    """Update app settings"""
+    await db.app_settings.update_one(
+        {"setting_id": "global"},
+        {"$set": {
+            "setting_id": "global",
+            "dark_mode": settings.dark_mode,
+            "allowed_emails": settings.allowed_emails,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
     )
-    
-    booking_dict = new_booking.model_dump()
-    booking_dict['created_at'] = booking_dict['created_at'].isoformat()
-    await db.bookings.insert_one(booking_dict)
-    
-    # Update enquiry status if linked
-    if booking.enquiry_id:
-        await db.enquiries.update_one({"id": booking.enquiry_id}, {"$set": {"status": "converted"}})
-    
-    return {"message": "Booking created", "id": new_booking.id}
+    return {"message": "Settings updated"}
 
-# ==================== SALES CRUD ====================
-
-@api_router.get("/sales")
-async def list_sales(user: User = Depends(get_current_user)):
-    sales = await db.sales.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
-    return {"sales": sales}
-
-@api_router.post("/sales")
-async def create_sale(sale: SaleCreate, user: User = Depends(get_current_user)):
-    # Enrich with names
-    branch = await db.branches.find_one({"id": sale.branch_id}, {"_id": 0})
-    executive = await db.executives.find_one({"id": sale.executive_id}, {"_id": 0})
-    model = await db.models.find_one({"id": sale.model_id}, {"_id": 0})
-    
-    new_sale = Sale(
-        **sale.model_dump(),
-        branch_name=branch["name"] if branch else None,
-        executive_name=executive["name"] if executive else None,
-        model_name=model["name"] if model else None
+@api_router.post("/settings/add-email")
+async def add_allowed_email(email: str = Query(...), user: User = Depends(get_current_user)):
+    """Add email to allowed list"""
+    await db.app_settings.update_one(
+        {"setting_id": "global"},
+        {"$addToSet": {"allowed_emails": email}},
+        upsert=True
     )
-    
-    sale_dict = new_sale.model_dump()
-    sale_dict['created_at'] = sale_dict['created_at'].isoformat()
-    await db.sales.insert_one(sale_dict)
-    
-    # Update booking status if linked
-    if sale.booking_id:
-        await db.bookings.update_one({"id": sale.booking_id}, {"$set": {"status": "delivered"}})
-    
-    return {"message": "Sale created", "id": new_sale.id}
+    return {"message": f"Email {email} added to allowed list"}
 
-# ==================== MASTER DATA CRUD ====================
-
-@api_router.get("/branches")
-async def list_branches(user: User = Depends(get_current_user)):
-    branches = await db.branches.find({}, {"_id": 0}).to_list(None)
-    return {"branches": branches}
-
-@api_router.post("/branches")
-async def create_branch(branch: Branch, user: User = Depends(get_current_user)):
-    branch_dict = branch.model_dump()
-    branch_dict['created_at'] = branch_dict['created_at'].isoformat()
-    await db.branches.insert_one(branch_dict)
-    return {"message": "Branch created", "id": branch.id}
-
-@api_router.get("/executives")
-async def list_executives(user: User = Depends(get_current_user)):
-    executives = await db.executives.find({}, {"_id": 0}).to_list(None)
-    return {"executives": executives}
-
-@api_router.post("/executives")
-async def create_executive(executive: Executive, user: User = Depends(get_current_user)):
-    branch = await db.branches.find_one({"id": executive.branch_id}, {"_id": 0})
-    executive.branch_name = branch["name"] if branch else None
-    
-    exec_dict = executive.model_dump()
-    exec_dict['created_at'] = exec_dict['created_at'].isoformat()
-    await db.executives.insert_one(exec_dict)
-    return {"message": "Executive created", "id": executive.id}
-
-@api_router.get("/models")
-async def list_models(user: User = Depends(get_current_user)):
-    models = await db.models.find({}, {"_id": 0}).to_list(None)
-    return {"models": models}
-
-@api_router.post("/models")
-async def create_model(model: VehicleModel, user: User = Depends(get_current_user)):
-    model_dict = model.model_dump()
-    model_dict['created_at'] = model_dict['created_at'].isoformat()
-    await db.models.insert_one(model_dict)
-    return {"message": "Model created", "id": model.id}
+@api_router.delete("/settings/remove-email")
+async def remove_allowed_email(email: str = Query(...), user: User = Depends(get_current_user)):
+    """Remove email from allowed list"""
+    await db.app_settings.update_one(
+        {"setting_id": "global"},
+        {"$pull": {"allowed_emails": email}}
+    )
+    return {"message": f"Email {email} removed from allowed list"}
 
 # ==================== GOOGLE SHEETS DATA ENDPOINTS ====================
 
@@ -425,12 +260,12 @@ async def get_sheets_sales_data(
 ):
     """Get sales data from Google Sheets with filters"""
     try:
-        sales_data = await sheets_service.get_sales_data()
+        sales_data = await sheets_service.get_sales_data(branch)
         
         # Apply filters
         filtered_data = []
         for record in sales_data:
-            # Search filter (search in customer name, phone, model)
+            # Search filter
             if search:
                 search_lower = search.lower()
                 searchable = f"{record.get('Customer Name', '')} {record.get('Mobile No', '')} {record.get('Vehicle Model', '')}".lower()
@@ -442,10 +277,6 @@ async def get_sheets_sales_data(
                 sale_date = record.get('Sales Date', '')
                 if sale_date and (sale_date < start_date or sale_date > end_date):
                     continue
-            
-            # Branch filter
-            if branch and record.get('Location', '') != branch:
-                continue
             
             # Executive filter  
             if executive and record.get('Executive Name', '') != executive:
@@ -461,45 +292,191 @@ async def get_sheets_sales_data(
         logger.error(f"Sheets sales data error: {e}")
         return {"data": [], "total": 0}
 
+@api_router.get("/sheets/stock-data")
+async def get_sheets_stock_data(
+    branch: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get inventory/stock data from Google Sheets"""
+    try:
+        stock_data = await sheets_service.get_stock_data(branch)
+        
+        if search:
+            search_lower = search.lower()
+            stock_data = [
+                record for record in stock_data
+                if search_lower in str(record).lower()
+            ]
+        
+        return {
+            "data": stock_data,
+            "total": len(stock_data)
+        }
+    except Exception as e:
+        logger.error(f"Sheets stock data error: {e}")
+        return {"data": [], "total": 0}
+
+@api_router.get("/sheets/service-data")
+async def get_sheets_service_data(
+    branch: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get service data from Google Sheets"""
+    try:
+        service_data = await sheets_service.get_service_data(branch)
+        return {
+            "data": service_data,
+            "total": len(service_data)
+        }
+    except Exception as e:
+        logger.error(f"Sheets service data error: {e}")
+        return {"data": [], "total": 0}
+
 @api_router.get("/sheets/branches")
 async def get_sheets_branches(user: User = Depends(get_current_user)):
-    """Get unique branches from Google Sheets"""
-    try:
-        sales_data = await sheets_service.get_sales_data()
-        branches = list(set([record.get('Location', '') for record in sales_data if record.get('Location')]))
-        return {"branches": sorted(branches)}
-    except Exception as e:
-        logger.error(f"Sheets branches error: {e}")
-        return {"branches": []}
+    """Get list of all branches"""
+    return {"branches": sheets_service.get_branches()}
 
 @api_router.get("/sheets/executives")
-async def get_sheets_executives(user: User = Depends(get_current_user)):
+async def get_sheets_executives(
+    branch: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
     """Get unique executives from Google Sheets"""
     try:
-        sales_data = await sheets_service.get_sales_data()
-        executives = list(set([record.get('Executive Name', '') for record in sales_data if record.get('Executive Name')]))
+        sales_data = await sheets_service.get_sales_data(branch)
+        executives = list(set([
+            record.get('Executive Name', '') 
+            for record in sales_data 
+            if record.get('Executive Name')
+        ]))
         return {"executives": sorted(executives)}
     except Exception as e:
         logger.error(f"Sheets executives error: {e}")
         return {"executives": []}
 
+# ==================== SERVICE PDF UPLOAD ====================
+
+@api_router.post("/service/upload-pdf")
+async def upload_service_pdf(
+    file: UploadFile = File(...),
+    branch: str = Query(...),
+    user: User = Depends(get_current_user)
+):
+    """Upload and parse S601 service PDF"""
+    try:
+        if not file.filename.endswith('.pdf'):
+            raise HTTPException(status_code=400, detail="Only PDF files allowed")
+        
+        content = await file.read()
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+        
+        extracted_data = []
+        full_text = ""
+        
+        for page in pdf_reader.pages:
+            full_text += page.extract_text() + "\n"
+        
+        # Parse the S601 format - technician productivity table
+        lines = full_text.split('\n')
+        headers = None
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Look for header row
+            if 'Technician' in line and 'Free' in line and 'Paid' in line:
+                headers = ['SI No', 'Technician', 'Free', 'Paid', 'PSF', 'Major', 'Minor', 
+                          'Accident', 'PDI', 'Veh Tot', 'Parts Val', 'Bench work', 
+                          'Out Work', 'Water Work', 'Dealer Cat Work']
+                continue
+            
+            # Parse data rows (numbers followed by name)
+            if headers and re.match(r'^\d+\s+[A-Z]', line):
+                parts = line.split()
+                if len(parts) >= 10:
+                    row = {
+                        'SI No': parts[0] if parts[0].isdigit() else '',
+                        'Technician': ' '.join(parts[1:3]) if len(parts) > 2 else parts[1],
+                        'Free': parts[-13] if len(parts) > 13 else '0',
+                        'Paid': parts[-12] if len(parts) > 12 else '0',
+                        'PSF': parts[-11] if len(parts) > 11 else '0',
+                        'Major': parts[-10] if len(parts) > 10 else '0',
+                        'Minor': parts[-9] if len(parts) > 9 else '0',
+                        'Accident': parts[-8] if len(parts) > 8 else '0',
+                        'PDI': parts[-7] if len(parts) > 7 else '0',
+                        'Veh Tot': parts[-6] if len(parts) > 6 else '0',
+                        'Parts Val': parts[-5] if len(parts) > 5 else '0',
+                        'Bench work': parts[-4] if len(parts) > 4 else '0',
+                        'Out Work': parts[-3] if len(parts) > 3 else '0',
+                        'Water Work': parts[-2] if len(parts) > 2 else '0',
+                        'Dealer Cat Work': parts[-1] if len(parts) > 1 else '0',
+                        'Branch': branch
+                    }
+                    extracted_data.append(row)
+        
+        # Store in database (replace previous day's data for this branch)
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        await db.service_reports.delete_many({"branch": branch, "date": today})
+        
+        if extracted_data:
+            for record in extracted_data:
+                record['date'] = today
+                record['uploaded_at'] = datetime.now(timezone.utc).isoformat()
+            await db.service_reports.insert_many(extracted_data)
+        
+        return {
+            "message": f"Successfully extracted {len(extracted_data)} records",
+            "data": extracted_data,
+            "filename": file.filename
+        }
+        
+    except Exception as e:
+        logger.error(f"PDF upload error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/service/reports")
+async def get_service_reports(
+    branch: Optional[str] = Query(None),
+    date: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get service reports from uploaded PDFs"""
+    try:
+        query = {}
+        if branch:
+            query["branch"] = branch
+        if date:
+            query["date"] = date
+        
+        reports = await db.service_reports.find(query, {"_id": 0}).to_list(None)
+        return {"data": reports, "total": len(reports)}
+    except Exception as e:
+        logger.error(f"Service reports error: {e}")
+        return {"data": [], "total": 0}
+
+# ==================== ROOT ====================
+
 @api_router.get("/")
 async def root():
-    return {"message": "Dealership SaaS API", "status": "active"}
+    return {"message": "Dharani TVS Business Manager API", "status": "active"}
 
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting Dealership SaaS API...")
+    logger.info("Starting Dharani TVS Business Manager API...")
     await sheets_service.connect()
 
 @app.on_event("shutdown")
