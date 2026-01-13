@@ -412,7 +412,76 @@ async def create_model(model: VehicleModel, user: User = Depends(get_current_use
     await db.models.insert_one(model_dict)
     return {"message": "Model created", "id": model.id}
 
-# ==================== ROOT ====================
+# ==================== GOOGLE SHEETS DATA ENDPOINTS ====================
+
+@api_router.get("/sheets/sales-data")
+async def get_sheets_sales_data(
+    search: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch: Optional[str] = Query(None),
+    executive: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get sales data from Google Sheets with filters"""
+    try:
+        sales_data = await sheets_service.get_sales_data()
+        
+        # Apply filters
+        filtered_data = []
+        for record in sales_data:
+            # Search filter (search in customer name, phone, model)
+            if search:
+                search_lower = search.lower()
+                searchable = f"{record.get('Customer Name', '')} {record.get('Mobile No', '')} {record.get('Vehicle Model', '')}".lower()
+                if search_lower not in searchable:
+                    continue
+            
+            # Date filter
+            if start_date and end_date:
+                sale_date = record.get('Sales Date', '')
+                if sale_date and (sale_date < start_date or sale_date > end_date):
+                    continue
+            
+            # Branch filter
+            if branch and record.get('Location', '') != branch:
+                continue
+            
+            # Executive filter  
+            if executive and record.get('Executive Name', '') != executive:
+                continue
+            
+            filtered_data.append(record)
+        
+        return {
+            "data": filtered_data,
+            "total": len(filtered_data)
+        }
+    except Exception as e:
+        logger.error(f"Sheets sales data error: {e}")
+        return {"data": [], "total": 0}
+
+@api_router.get("/sheets/branches")
+async def get_sheets_branches(user: User = Depends(get_current_user)):
+    """Get unique branches from Google Sheets"""
+    try:
+        sales_data = await sheets_service.get_sales_data()
+        branches = list(set([record.get('Location', '') for record in sales_data if record.get('Location')]))
+        return {"branches": sorted(branches)}
+    except Exception as e:
+        logger.error(f"Sheets branches error: {e}")
+        return {"branches": []}
+
+@api_router.get("/sheets/executives")
+async def get_sheets_executives(user: User = Depends(get_current_user)):
+    """Get unique executives from Google Sheets"""
+    try:
+        sales_data = await sheets_service.get_sales_data()
+        executives = list(set([record.get('Executive Name', '') for record in sales_data if record.get('Executive Name')]))
+        return {"executives": sorted(executives)}
+    except Exception as e:
+        logger.error(f"Sheets executives error: {e}")
+        return {"executives": []}
 
 @api_router.get("/")
 async def root():
