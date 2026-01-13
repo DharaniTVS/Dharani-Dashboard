@@ -1,29 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
-  const [selectedBranch, setSelectedBranch] = useState('Bhavani');
+  const [selectedBranch, setSelectedBranch] = useState('Kumarapalayam');
   const [isSalesOpen, setIsSalesOpen] = useState(true);
 
   const branches = [
-    'Bhavani',
-    'Kavindapadi',
-    'Anthiyur',
     'Kumarapalayam',
-    'Ammapettai'
+    'Kavindapadi',
+    'Ammapettai',
+    'Anthiyur',
+    'Bhavani'
   ];
+
+  useEffect(() => {
+    const savedBranch = localStorage.getItem('selectedBranch');
+    if (savedBranch) {
+      setSelectedBranch(savedBranch);
+    }
+  }, []);
 
   const isActive = (path) => location.pathname === path;
 
   const handleBranchChange = (branch) => {
     setSelectedBranch(branch);
-    // Store in localStorage so it persists across pages
     localStorage.setItem('selectedBranch', branch);
-    // Trigger a custom event so other components can react
     window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
   };
 
@@ -38,12 +43,20 @@ const Sidebar = ({ user, onLogout }) => {
       {/* User Info */}
       <div className="mx-4 mt-4 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl border border-indigo-100" data-testid="user-info">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
-            {user.name.charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-gray-900">{user.name}</p>
-            <p className="text-xs text-gray-600 capitalize">{user.role.replace('_', ' ')}</p>
+          {user?.picture ? (
+            <img 
+              src={user.picture} 
+              alt={user.name} 
+              className="w-10 h-10 rounded-full"
+            />
+          ) : (
+            <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white font-semibold">
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
+            <p className="text-sm font-semibold text-gray-900 truncate">{user?.name || 'User'}</p>
+            <p className="text-xs text-gray-600 truncate">{user?.email || ''}</p>
           </div>
         </div>
       </div>
@@ -52,12 +65,18 @@ const Sidebar = ({ user, onLogout }) => {
       <div className="mx-4 mt-4">
         <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Branch</label>
         <Select value={selectedBranch} onValueChange={handleBranchChange}>
-          <SelectTrigger className="bg-white" data-testid="branch-selector">
-            <SelectValue />
+          <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="branch-selector">
+            <SelectValue className="text-gray-900" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white">
             {branches.map(branch => (
-              <SelectItem key={branch} value={branch}>{branch}</SelectItem>
+              <SelectItem 
+                key={branch} 
+                value={branch}
+                className="text-gray-900 hover:bg-gray-100 focus:bg-gray-100 cursor-pointer"
+              >
+                {branch}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -73,7 +92,7 @@ const Sidebar = ({ user, onLogout }) => {
         <div>
           <button
             onClick={() => setIsSalesOpen(!isSalesOpen)}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200"
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200"
             data-testid="nav-sales"
           >
             <div className="flex items-center gap-3">
@@ -92,17 +111,18 @@ const Sidebar = ({ user, onLogout }) => {
               <Link to="/dashboard">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                   isActive('/dashboard')
-                    ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}>
+                  <BarChart3 className="w-4 h-4" />
                   Dashboard
                 </div>
               </Link>
               <Link to="/enquiries">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                   isActive('/enquiries')
-                    ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}>
                   Enquiries
                 </div>
@@ -110,8 +130,8 @@ const Sidebar = ({ user, onLogout }) => {
               <Link to="/bookings">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                   isActive('/bookings')
-                    ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}>
                   Bookings
                 </div>
@@ -119,8 +139,8 @@ const Sidebar = ({ user, onLogout }) => {
               <Link to="/">
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                   isActive('/')
-                    ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}>
                   Sold
                 </div>
@@ -133,8 +153,8 @@ const Sidebar = ({ user, onLogout }) => {
         <Link to="/service" data-testid="nav-service">
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
             isActive('/service')
-              ? 'bg-indigo-50 text-indigo-600 font-medium'
-              : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
           }`}>
             <Wrench className="w-5 h-5" />
             <span className="text-sm">Service</span>
@@ -145,8 +165,8 @@ const Sidebar = ({ user, onLogout }) => {
         <Link to="/inventory" data-testid="nav-inventory">
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
             isActive('/inventory')
-              ? 'bg-indigo-50 text-indigo-600 font-medium'
-              : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
           }`}>
             <Package className="w-5 h-5" />
             <span className="text-sm">Inventory</span>
@@ -157,11 +177,17 @@ const Sidebar = ({ user, onLogout }) => {
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
             Support
           </div>
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200 w-full">
-            <Settings className="w-5 h-5" />
-            <span className="text-sm">Settings</span>
-          </button>
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200 w-full">
+          <Link to="/settings" data-testid="nav-settings">
+            <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+              isActive('/settings')
+                ? 'bg-indigo-100 text-indigo-700 font-medium'
+                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+            }`}>
+              <Settings className="w-5 h-5" />
+              <span className="text-sm">Settings</span>
+            </div>
+          </Link>
+          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200 w-full">
             <HelpCircle className="w-5 h-5" />
             <span className="text-sm">Help & Support</span>
           </button>
