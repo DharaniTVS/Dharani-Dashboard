@@ -69,23 +69,22 @@ class SheetsService:
             # Use provided GID or lookup from sheet name
             sheet_gid = gid if gid is not None else self.SHEET_GIDS.get(sheet_name, 0)
             
-            # Use Google Sheets CSV export
-            limits = httpx.Limits(max_keepalive_connections=5, max_connections=10)
-            async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, limits=limits) as client:
-                url = f"{self.base_url}?format=csv&gid={sheet_gid}"
-                response = await client.get(url)
+            # Use requests library for better Google redirect handling
+            import requests
+            url = f"{self.base_url}?format=csv&gid={sheet_gid}"
+            response = requests.get(url, timeout=15, allow_redirects=True)
+            
+            if response.status_code == 200:
+                # Parse CSV
+                csv_data = response.text
+                reader = csv.DictReader(io.StringIO(csv_data))
+                result = [row for row in reader]
                 
-                if response.status_code == 200:
-                    # Parse CSV
-                    csv_data = response.text
-                    reader = csv.DictReader(io.StringIO(csv_data))
-                    result = [row for row in reader]
-                    
-                    logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
-                    return result
-                else:
-                    logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
-                    return []
+                logger.info(f"✓ Read {len(result)} rows from '{sheet_name}' (gid={sheet_gid})")
+                return result
+            else:
+                logger.error(f"Failed to read '{sheet_name}': HTTP {response.status_code}")
+                return []
         except Exception as e:
             logger.error(f"Failed to read '{sheet_name}': {e}")
             return []
