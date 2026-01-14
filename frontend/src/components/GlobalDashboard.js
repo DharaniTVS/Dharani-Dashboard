@@ -6,7 +6,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Building2, DollarSign, Target, RefreshCw, Download, FileText, Users, ShoppingCart, CheckCircle, Percent, Search } from 'lucide-react';
+import { Building2, DollarSign, Target, RefreshCw, Download, FileText, Users, ShoppingCart, CheckCircle, Percent, Search, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
