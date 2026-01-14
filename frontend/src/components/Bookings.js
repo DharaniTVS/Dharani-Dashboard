@@ -264,15 +264,13 @@ const Bookings = ({ user, onLogout }) => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Date</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Booking Date</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Mobile No</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Vehicle Model</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Category</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Phone No</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Model</th>
                       <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Executive</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Downpayment</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Payment</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Financier</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Booking Amount</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Payment Mode</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -282,33 +280,21 @@ const Bookings = ({ user, onLogout }) => {
                         className="hover:bg-gray-50 transition-colors"
                         data-testid={`booking-row-${index}`}
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Sales Date'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900">{record['Booking Date'] || '-'}</td>
                         <td className="py-4 px-6 text-sm font-medium text-gray-900">{record['Customer Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Mobile No'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Vehicle Model'] || '-'}</td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Category'] === 'Sports' ? 'bg-red-100 text-red-700' :
-                            record['Category'] === 'Scooter' ? 'bg-blue-100 text-blue-700' :
-                            record['Category'] === 'EV' ? 'bg-green-100 text-green-700' :
-                            record['Category'] === 'Moped' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {record['Category'] || '-'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive Name'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-600">{record['Phone No'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900">{record['Model'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive'] || '-'}</td>
                         <td className="py-4 px-6 text-sm text-gray-900 font-medium">
-                          ₹{record['Downpayment (₹)'] || Object.entries(record).find(([key]) => key.toLowerCase().includes('downpayment'))?.[1] || '-'}
+                          ₹{record['Booking Amount'] || '-'}
                         </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                            record['Payment Mode'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
                           }`}>
-                            {record['Cash/HP'] || '-'}
+                            {record['Payment Mode'] || '-'}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Financier Name'] || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
