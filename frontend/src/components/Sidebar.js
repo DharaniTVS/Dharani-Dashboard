@@ -84,7 +84,7 @@ const Sidebar = ({ user, onLogout }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">
-        {/* Global Dashboard - Above Branch Selection */}
+        {/* Main Dashboard - Above Branch Selection */}
         <Link to="/global" data-testid="nav-global">
           <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 mb-4 ${
             isActive('/global')
@@ -92,24 +92,27 @@ const Sidebar = ({ user, onLogout }) => {
               : 'bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 hover:from-indigo-100 hover:to-purple-100'
           }`}>
             <Building2 className="w-5 h-5" />
-            <span className="text-sm font-semibold">Global Dashboard</span>
+            <span className="text-sm font-semibold">Main Dashboard</span>
           </div>
         </Link>
 
-        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
-          Branch: {selectedBranch}
-        </div>
-        
-        {/* Sales with Submenu */}
-        <div>
-          <button
-            onClick={() => setIsSalesOpen(!isSalesOpen)}
-            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
-            data-testid="nav-sales"
-          >
-            <div className="flex items-center gap-3">
-              <ShoppingCart className="w-5 h-5" />
-              <span className="text-sm font-medium">Sales</span>
+        {/* Show branch-specific menu only when NOT on Main Dashboard */}
+        {!isActive('/global') && (
+          <>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
+              Branch: {selectedBranch}
+            </div>
+            
+            {/* Sales with Submenu */}
+            <div>
+              <button
+                onClick={() => setIsSalesOpen(!isSalesOpen)}
+                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+                data-testid="nav-sales"
+              >
+                <div className="flex items-center gap-3">
+                  <ShoppingCart className="w-5 h-5" />
+                  <span className="text-sm font-medium">Sales</span>
             </div>
             {isSalesOpen ? (
               <ChevronDown className="w-4 h-4" />
