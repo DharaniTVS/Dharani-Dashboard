@@ -8,7 +8,7 @@ import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, Cartesia
 import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, ArrowUpRight, ArrowDownRight, BarChart3, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileDown, X } from 'lucide-react';
 import { Button } from './ui/button';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
