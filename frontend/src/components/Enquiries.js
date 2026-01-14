@@ -78,23 +78,22 @@ const Enquiries = ({ user, onLogout }) => {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(record => 
         (record['Customer Name'] || '').toLowerCase().includes(search) ||
-        (record['Mobile No'] || '').toLowerCase().includes(search) ||
-        (record['Vehicle Model'] || '').toLowerCase().includes(search)
+        (record['Phone'] || '').toLowerCase().includes(search) ||
+        (record['Model'] || '').toLowerCase().includes(search)
       );
     }
 
     if (selectedExecutive && selectedExecutive !== 'all') {
-      filtered = filtered.filter(record => record['Executive Name'] === selectedExecutive);
+      filtered = filtered.filter(record => record['Executive'] === selectedExecutive);
     }
 
     // Date filter
     if (startDate && endDate) {
       filtered = filtered.filter(record => {
-        const saleDate = record['Sales Date'] || '';
-        // Parse date (format: DD-MMM-YYYY or other formats)
-        if (saleDate) {
+        const enquiryDate = record['Date'] || '';
+        if (enquiryDate) {
           try {
-            const recordDate = new Date(saleDate);
+            const recordDate = new Date(enquiryDate);
             const start = new Date(startDate);
             const end = new Date(endDate);
             return recordDate >= start && recordDate <= end;
