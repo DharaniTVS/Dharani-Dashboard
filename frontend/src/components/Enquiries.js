@@ -264,13 +264,15 @@ const Enquiries = ({ user, onLogout }) => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Date</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Phone</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Model</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Source</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Status</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Executive</th>
+                      {/* Dynamic columns from data */}
+                      {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, idx) => (
+                        <th 
+                          key={idx}
+                          className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 whitespace-nowrap"
+                        >
+                          {column}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -280,32 +282,37 @@ const Enquiries = ({ user, onLogout }) => {
                         className="hover:bg-gray-50 transition-colors"
                         data-testid={`enquiry-row-${index}`}
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Date'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-gray-900">{record['Customer Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Phone'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Model'] || '-'}</td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Source'] === 'Walk-in' ? 'bg-blue-100 text-blue-700' :
-                            record['Source'] === 'Instagram' ? 'bg-pink-100 text-pink-700' :
-                            record['Source'] === 'Facebook' ? 'bg-indigo-100 text-indigo-700' :
-                            record['Source'] === 'Referral' ? 'bg-green-100 text-green-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {record['Source'] || '-'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Status'] === 'Open' ? 'bg-yellow-100 text-yellow-700' :
-                            record['Status'] === 'Converted' ? 'bg-green-100 text-green-700' :
-                            record['Status'] === 'Lost' ? 'bg-red-100 text-red-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {record['Status'] || '-'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive'] || '-'}</td>
+                        {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, colIdx) => (
+                          <td 
+                            key={colIdx}
+                            className="py-3 px-4 text-sm whitespace-nowrap text-gray-700"
+                          >
+                            {column === 'Source' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column] === 'Walk-in' ? 'bg-blue-100 text-blue-700' :
+                                record[column] === 'Instagram' ? 'bg-pink-100 text-pink-700' :
+                                record[column] === 'Facebook' ? 'bg-indigo-100 text-indigo-700' :
+                                record[column] === 'Referral' ? 'bg-green-100 text-green-700' :
+                                record[column] === 'Website' ? 'bg-purple-100 text-purple-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : column === 'Status' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column] === 'Open' ? 'bg-yellow-100 text-yellow-700' :
+                                record[column] === 'Converted' || record[column] === 'Closed' ? 'bg-green-100 text-green-700' :
+                                record[column] === 'Lost' ? 'bg-red-100 text-red-700' :
+                                record[column] === 'Follow-up' ? 'bg-blue-100 text-blue-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : (
+                              record[column] || '-'
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
