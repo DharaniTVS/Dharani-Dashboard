@@ -221,7 +221,7 @@ const Enquiries = ({ user, onLogout }) => {
                   Start Date
                 </label>
                 <Input
-                  type="date"
+                  type="date" style={{ color: "#1f2937" }}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="bg-white text-gray-900 border-gray-300"
@@ -234,7 +234,7 @@ const Enquiries = ({ user, onLogout }) => {
                   End Date
                 </label>
                 <Input
-                  type="date"
+                  type="date" style={{ color: "#1f2937" }}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="bg-white text-gray-900 border-gray-300"

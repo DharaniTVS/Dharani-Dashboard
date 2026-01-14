@@ -194,7 +194,7 @@ const Service = ({ user, onLogout }) => {
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-500" />
                 <Input
-                  type="date"
+                  type="date" style={{ color: "#1f2937" }}
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
                   className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
@@ -202,7 +202,7 @@ const Service = ({ user, onLogout }) => {
                 />
                 <span className="text-gray-400">-</span>
                 <Input
-                  type="date"
+                  type="date" style={{ color: "#1f2937" }}
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
                   className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
