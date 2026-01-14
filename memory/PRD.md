@@ -58,19 +58,20 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 
 ## Data Sources
 
-### Google Sheets (Per Branch)
-| Branch | Sheet ID |
-|--------|----------|
-| Kumarapalayam | 1sVI5CrCVXqT4ZgiEHz-j2LSA-sLHTIE_DcqoRk8UvCM |
-| Kavindapadi | 15W3aqY11b5HdB3KGcurs0MYO_h9r3qtQgQIQSKDjzqo |
-| Ammapettai | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
-| Anthiyur | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
-| Bhavani | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I |
+### Google Sheets (Per Branch) - UPDATED Jan 14, 2026
+| Branch | Sheet ID | Stock GID |
+|--------|----------|-----------|
+| Bhavani | 1HYtgy4pLdQkCAInxucl3UT08B9afcJwuSrNtCvgDB7g | 471760422 |
+| Kumarapalayam | 1sVI5CrCVXqT4ZgiEHz-j2LSA-sLHTIE_DcqoRk8UvCM | 2505719 |
+| Anthiyur | 1MIf_sT6t4F9-2KeKwVylWH4VGKTUNAuxCLB2-COLXkA | 1670776756 |
+| Kavindapadi | 15W3aqY11b5HdB3KGcurs0MYO_h9r3qtQgQIQSKDjzqo | 522931946 |
+| Ammapettai | 1dsV2gPw1eP-vaWv9fd25D5qJ9z5uXSd_bKLNvxmLp0I | 674010899 |
 
-### Sheet Structure
-- **Sales (gid=0)**: Customer Name, Mobile No, Vehicle Model, Category, Executive Name, Sales Date, Vehicle Cost, etc.
-- **Stock (gid=1)**: Inventory data
-- **Service (gid=2)**: Service records
+### Sheet Structure (Per Branch)
+- **Sold (gid=0)**: Customer Name, Mobile No, Vehicle Model, Category, Executive Name, Sales Date, Vehicle Cost
+- **Enquiry (gid=1168200442)**: Date, Executive, Customer Name, Phone, Model, Source, Status
+- **Bookings (gid=9828158)**: Booking Date, Customer Name, Executive, Phone No, Model, Booking Amount, Payment Mode
+- **Stock (branch-specific GID)**: MODEL, Colour, Frame No, Engine No, Quantity, TVS Invoice Date, Aging Stock (Days), Dealer Invoice Status, PDI Status
 
 ## What's Been Implemented
 
