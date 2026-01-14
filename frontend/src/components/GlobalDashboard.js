@@ -236,57 +236,103 @@ const GlobalDashboard = ({ user, onLogout }) => {
   const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(value);
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape', 'mm', 'a3');
     const branchData = getBranchComparisonData();
 
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setTextColor(99, 102, 241);
-    doc.text('Dharani TVS - Main Dashboard Report', 20, 20);
-    doc.setFontSize(10);
+    doc.text('Dharani TVS - Main Dashboard Report', 20, 15);
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 28);
-    doc.text(`Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 34);
+    doc.text(`Generated: ${new Date().toLocaleString()} | Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 22);
 
+    // KPI Summary
     autoTable(doc, {
-      startY: 45,
-      head: [['Metric', 'Value']],
-      body: [
-        ['Total Sales', formatNumber(stats.totalSales)],
-        ['Total Enquiries', formatNumber(stats.totalEnquiries)],
-        ['Total Bookings', formatNumber(stats.totalBookings)],
-        ['Conversion Rate', `${stats.conversionRate}%`],
-        ['Total DC Collected', formatCurrency(stats.totalDC)],
-        ['Total Discount', formatCurrency(stats.totalDiscount)]
-      ],
-      theme: 'striped',
-      headStyles: { fillColor: [99, 102, 241] }
+      startY: 30,
+      head: [['Total Sales', 'Total Enquiries', 'Total Bookings', 'Conversion %', 'DC Collected', 'Total Discount']],
+      body: [[
+        formatNumber(stats.totalSales),
+        formatNumber(stats.totalEnquiries),
+        formatNumber(stats.totalBookings),
+        `${stats.conversionRate}%`,
+        formatCurrency(stats.totalDC),
+        formatCurrency(stats.totalDiscount)
+      ]],
+      theme: 'grid',
+      headStyles: { fillColor: [99, 102, 241], fontSize: 8 },
+      styles: { fontSize: 9, halign: 'center' }
     });
 
+    // Branch comparison
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 15,
-      head: [['Branch', 'Sales', 'Enquiries', 'Bookings', 'Revenue']],
-      body: branchData.map(b => [b.fullName, b.sales, b.enquiries, b.bookings, formatCurrency(b.revenue)]),
+      startY: doc.lastAutoTable.finalY + 10,
+      head: [['Branch', 'Sales', 'Enquiries', 'Bookings', 'Revenue', 'Conversion %']],
+      body: branchData.map(b => [
+        b.fullName, 
+        b.sales, 
+        b.enquiries, 
+        b.bookings, 
+        formatCurrency(b.revenue),
+        b.enquiries > 0 ? ((b.sales / b.enquiries) * 100).toFixed(1) + '%' : '0%'
+      ]),
       theme: 'striped',
-      headStyles: { fillColor: [99, 102, 241] }
+      headStyles: { fillColor: [99, 102, 241], fontSize: 8 },
+      styles: { fontSize: 8 }
     });
+
+    // All sales data from all branches
+    const allSalesData = Object.values(allBranchData).flat();
+    if (allSalesData.length > 0) {
+      const allHeaders = [...new Set(allSalesData.flatMap(row => Object.keys(row)))].filter(h => h !== 'Branch');
+      
+      doc.addPage('a3', 'landscape');
+      doc.setFontSize(14);
+      doc.setTextColor(99, 102, 241);
+      doc.text('All Sales Data', 20, 15);
+      
+      autoTable(doc, {
+        startY: 22,
+        head: [allHeaders.map(h => h.length > 12 ? h.substring(0, 12) + '..' : h)],
+        body: allSalesData.slice(0, 500).map(row => 
+          allHeaders.map(h => {
+            const value = row[h] || '-';
+            return String(value).length > 15 ? String(value).substring(0, 15) + '..' : String(value);
+          })
+        ),
+        theme: 'striped',
+        headStyles: { fillColor: [99, 102, 241], fontSize: 5, cellPadding: 1 },
+        styles: { fontSize: 5, cellPadding: 1 }
+      });
+    }
 
     doc.save(`main-dashboard-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const exportToCSV = () => {
-    const branchData = getBranchComparisonData();
-    const headers = ['Branch', 'Sales', 'Enquiries', 'Bookings', 'Revenue'];
+    // Export all sales data from all branches
+    const allSalesData = Object.values(allBranchData).flat();
+    
+    if (allSalesData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+    
+    const allHeaders = [...new Set(allSalesData.flatMap(row => Object.keys(row)))];
+    
     const csvContent = [
-      headers.join(','),
-      ...branchData.map(b => [b.fullName, b.sales, b.enquiries, b.bookings, b.revenue].join(','))
+      allHeaders.join(','),
+      ...allSalesData.map(row => 
+        allHeaders.map(h => `"${String(row[h] || '').replace(/"/g, '""')}"`).join(',')
+      )
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `main-dashboard-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `all-branches-sales-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
