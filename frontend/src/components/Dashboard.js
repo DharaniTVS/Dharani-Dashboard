@@ -173,7 +173,7 @@ const Dashboard = ({ user, onLogout }) => {
     doc.setTextColor(100);
     doc.text(`Branch: ${selectedBranch} | Records: ${drillDownData.length}`, 20, 28);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 35,
       head: [['Date', 'Customer', 'Phone', 'Model', 'Category', 'Cost']],
       body: drillDownData.map(row => [

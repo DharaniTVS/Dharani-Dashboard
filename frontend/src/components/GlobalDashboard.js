@@ -153,7 +153,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
     doc.setTextColor(0);
     doc.text('Summary Statistics', 20, 45);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: 50,
       head: [['Metric', 'Value']],
       body: [
@@ -170,7 +170,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
     doc.setFontSize(14);
     doc.text('Branch Comparison', 20, doc.lastAutoTable.finalY + 15);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: doc.lastAutoTable.finalY + 20,
       head: [['Branch', 'Sales', 'Revenue', 'Avg Order Value']],
       body: branchData.map(b => [
