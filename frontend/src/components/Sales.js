@@ -316,7 +316,8 @@ const Sales = ({ user, onLogout }) => {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
+                  className="bg-white text-gray-900 border-gray-300 [color-scheme:light]"
+                  style={{ color: '#1f2937' }}
                 />
               </div>
               <div>
@@ -328,7 +329,8 @@ const Sales = ({ user, onLogout }) => {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
+                  className="bg-white text-gray-900 border-gray-300 [color-scheme:light]"
+                  style={{ color: '#1f2937' }}
                 />
               </div>
             </div>
