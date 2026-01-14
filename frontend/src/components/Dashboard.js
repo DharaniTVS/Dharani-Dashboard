@@ -5,7 +5,7 @@ import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { Users, ShoppingCart, CheckCircle, DollarSign, Target, RefreshCw, Calendar, Download, FileDown, X, Percent } from 'lucide-react';
+import { Users, ShoppingCart, CheckCircle, DollarSign, Target, RefreshCw, Calendar, Download, FileDown, X, Percent, Search } from 'lucide-react';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
@@ -28,10 +28,19 @@ const Dashboard = ({ user, onLogout }) => {
     totalDCCollected: 0,
     totalDiscountOperated: 0
   });
-  const [salesTrendData, setSalesTrendData] = useState([]);
+  
+  // Filter states
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [trendPeriod, setTrendPeriod] = useState('daily');
-  const [chartStartDate, setChartStartDate] = useState('');
-  const [chartEndDate, setChartEndDate] = useState('');
+  const [selectedExecutive, setSelectedExecutive] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  // Trend data
+  const [salesTrendData, setSalesTrendData] = useState([]);
+  const [enquiryTrendData, setEnquiryTrendData] = useState([]);
+  const [bookingsTrendData, setBookingsTrendData] = useState([]);
+  
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
   const [lastSync, setLastSync] = useState(null);
   
@@ -84,23 +93,70 @@ const Dashboard = ({ user, onLogout }) => {
     return () => clearInterval(interval);
   }, [autoSyncEnabled, fetchData]);
 
-  useEffect(() => {
-    calculateStats();
-    calculateSalesTrend();
-  }, [salesData, enquiryData, bookingsData, trendPeriod, chartStartDate, chartEndDate]);
+  // Get unique executives and categories
+  const getExecutives = () => {
+    const execs = new Set();
+    salesData.forEach(record => {
+      if (record['Executive Name']) execs.add(record['Executive Name']);
+    });
+    return Array.from(execs);
+  };
 
-  const calculateStats = () => {
-    const totalSales = salesData.length;
-    const totalEnquiries = enquiryData.length;
-    const totalBookings = bookingsData.length;
+  const getCategories = () => {
+    const cats = new Set();
+    salesData.forEach(record => {
+      if (record['Category']) cats.add(record['Category']);
+    });
+    return Array.from(cats);
+  };
+
+  // Apply filters and calculate trends
+  const applyFiltersAndCalculate = () => {
+    // Filter sales data
+    let filteredSales = [...salesData];
+    if (startDate && endDate) {
+      filteredSales = filteredSales.filter(record => {
+        const saleDate = record['Sales Date'];
+        return saleDate && saleDate >= startDate && saleDate <= endDate;
+      });
+    }
+    if (selectedExecutive !== 'all') {
+      filteredSales = filteredSales.filter(record => record['Executive Name'] === selectedExecutive);
+    }
+    if (selectedCategory !== 'all') {
+      filteredSales = filteredSales.filter(record => record['Category'] === selectedCategory);
+    }
+
+    // Filter enquiry data
+    let filteredEnquiry = [...enquiryData];
+    if (startDate && endDate) {
+      filteredEnquiry = filteredEnquiry.filter(record => {
+        const date = record['Date'] || record['Enquiry Date'];
+        return date && date >= startDate && date <= endDate;
+      });
+    }
+
+    // Filter bookings data
+    let filteredBookings = [...bookingsData];
+    if (startDate && endDate) {
+      filteredBookings = filteredBookings.filter(record => {
+        const date = record['Booking Date'] || record['Date'];
+        return date && date >= startDate && date <= endDate;
+      });
+    }
+
+    // Calculate stats
+    const totalSales = filteredSales.length;
+    const totalEnquiries = filteredEnquiry.length;
+    const totalBookings = filteredBookings.length;
     const conversionRate = totalEnquiries > 0 ? ((totalSales / totalEnquiries) * 100).toFixed(1) : 0;
     
-    const totalDCCollected = salesData.reduce((sum, record) => {
+    const totalDCCollected = filteredSales.reduce((sum, record) => {
       const dc = parseFloat(String(record['Document Charges'] || '0').replace(/[^0-9.]/g, ''));
       return sum + (isNaN(dc) ? 0 : dc);
     }, 0);
 
-    const totalDiscountOperated = salesData.reduce((sum, record) => {
+    const totalDiscountOperated = filteredSales.reduce((sum, record) => {
       const discountField = record['Discount Operated (₹)'] || record['Discount Operated'] || 
                            Object.entries(record).find(([key]) => key.toLowerCase().includes('discount'))?.[1] || '0';
       const discount = parseFloat(String(discountField).replace(/[^0-9.]/g, ''));
@@ -108,33 +164,29 @@ const Dashboard = ({ user, onLogout }) => {
     }, 0);
 
     setStats({ totalSales, totalEnquiries, totalBookings, conversionRate, totalDCCollected, totalDiscountOperated });
+
+    // Calculate Sales Trend
+    calculateTrend(filteredSales, 'Sales Date', 'Executive Name', setSalesTrendData);
+    
+    // Calculate Enquiry Trend
+    calculateTrend(filteredEnquiry, 'Date', 'Executive', setEnquiryTrendData, true);
+    
+    // Calculate Bookings Trend
+    calculateTrend(filteredBookings, 'Booking Date', 'Executive', setBookingsTrendData, true);
   };
 
-  const calculateSalesTrend = () => {
-    let filteredSales = [...salesData];
-    
-    // Apply date filter
-    if (chartStartDate && chartEndDate) {
-      filteredSales = salesData.filter(record => {
-        const saleDate = record['Sales Date'];
-        if (!saleDate) return false;
-        return saleDate >= chartStartDate && saleDate <= chartEndDate;
-      });
-    }
-
-    // Group by date
+  const calculateTrend = (data, dateField, groupField, setTrendData, simpleCount = false) => {
     const dateMap = {};
-    const executives = new Set();
+    const groups = new Set();
 
-    filteredSales.forEach(record => {
-      const exec = record['Executive Name'] || 'Unknown';
-      executives.add(exec);
+    data.forEach(record => {
+      const group = simpleCount ? 'Count' : (record[groupField] || 'Unknown');
+      groups.add(group);
       
-      let dateStr = record['Sales Date'] || '';
+      let dateStr = record[dateField] || record['Date'] || '';
       let groupKey = dateStr;
       
       if (trendPeriod === 'weekly' && dateStr) {
-        // Get week number
         const date = new Date(dateStr);
         const startOfYear = new Date(date.getFullYear(), 0, 1);
         const weekNum = Math.ceil((((date - startOfYear) / 86400000) + startOfYear.getDay() + 1) / 7);
@@ -147,27 +199,26 @@ const Dashboard = ({ user, onLogout }) => {
         if (!dateMap[groupKey]) {
           dateMap[groupKey] = { date: groupKey };
         }
-        dateMap[groupKey][exec] = (dateMap[groupKey][exec] || 0) + 1;
+        dateMap[groupKey][group] = (dateMap[groupKey][group] || 0) + 1;
       }
     });
 
-    // Sort and limit data points for cleaner chart
     let trendData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
-    
-    // Limit to last 15 data points for readability
     if (trendData.length > 15) {
       trendData = trendData.slice(-15);
     }
-
-    setSalesTrendData(trendData);
+    setTrendData(trendData);
   };
 
-  const getExecutives = () => {
-    const execs = new Set();
-    salesData.forEach(record => {
-      if (record['Executive Name']) execs.add(record['Executive Name']);
-    });
-    return Array.from(execs).slice(0, 5); // Limit to 5 executives for cleaner chart
+  // Initial calculation
+  useEffect(() => {
+    if (salesData.length > 0 || enquiryData.length > 0 || bookingsData.length > 0) {
+      applyFiltersAndCalculate();
+    }
+  }, [salesData, enquiryData, bookingsData]);
+
+  const handleSubmit = () => {
+    applyFiltersAndCalculate();
   };
 
   const handleExecutiveDrillDown = (exec) => {
@@ -311,7 +362,7 @@ const Dashboard = ({ user, onLogout }) => {
               </Button>
               <div className="flex items-center gap-1">
                 <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-500 hover:text-indigo-600">
+                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-500 hover:text-indigo-600" style={{ cursor: 'pointer' }}>
                   {autoSyncEnabled ? 'Auto' : 'Manual'}
                 </button>
               </div>
@@ -320,6 +371,76 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Filters Section */}
+          <Card className="p-4 bg-white rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">From Date</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-36 h-9 text-sm bg-white border-gray-200"
+                  style={{ color: '#1f2937' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">To Date</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-36 h-9 text-sm bg-white border-gray-200"
+                  style={{ color: '#1f2937' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Period</label>
+                <Select value={trendPeriod} onValueChange={setTrendPeriod}>
+                  <SelectTrigger className="w-28 h-9 text-sm bg-white border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                    <SelectItem value="daily" className="cursor-pointer hover:bg-gray-100">Daily</SelectItem>
+                    <SelectItem value="weekly" className="cursor-pointer hover:bg-gray-100">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="cursor-pointer hover:bg-gray-100">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Executive</label>
+                <Select value={selectedExecutive} onValueChange={setSelectedExecutive}>
+                  <SelectTrigger className="w-36 h-9 text-sm bg-white border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                    <SelectItem value="all" className="cursor-pointer hover:bg-gray-100">All Executives</SelectItem>
+                    {getExecutives().map(exec => (
+                      <SelectItem key={exec} value={exec} className="cursor-pointer hover:bg-gray-100">{exec}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-32 h-9 text-sm bg-white border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                    <SelectItem value="all" className="cursor-pointer hover:bg-gray-100">All Categories</SelectItem>
+                    {getCategories().map(cat => (
+                      <SelectItem key={cat} value={cat} className="cursor-pointer hover:bg-gray-100">{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleSubmit} className="h-9 bg-indigo-600 hover:bg-indigo-700">
+                <Search className="w-4 h-4 mr-1" /> Submit
+              </Button>
+            </div>
+          </Card>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <KPICard title="Total Sales" value={formatNumber(stats.totalSales)} icon={ShoppingCart} color="bg-indigo-500" bgColor="bg-white" />
@@ -330,64 +451,20 @@ const Dashboard = ({ user, onLogout }) => {
             <KPICard title="Discount" value={formatCurrency(stats.totalDiscountOperated)} icon={Target} color="bg-pink-500" bgColor="bg-white" />
           </div>
 
-          {/* Sales Trend Line Chart */}
+          {/* Sales Trend Chart */}
           <Card className="p-5 bg-white rounded-xl shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div>
-                <h3 className="text-base font-semibold text-gray-900">Sales Trend by Executive</h3>
-                <p className="text-xs text-gray-500">Performance over time</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Select value={trendPeriod} onValueChange={setTrendPeriod}>
-                  <SelectTrigger className="w-28 h-8 text-sm bg-white border-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
-                    <SelectItem value="daily" className="cursor-pointer hover:bg-gray-100">Daily</SelectItem>
-                    <SelectItem value="weekly" className="cursor-pointer hover:bg-gray-100">Weekly</SelectItem>
-                    <SelectItem value="monthly" className="cursor-pointer hover:bg-gray-100">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="date"
-                    value={chartStartDate}
-                    onChange={(e) => setChartStartDate(e.target.value)}
-                    className="w-32 h-8 text-xs bg-white border-gray-200"
-                    style={{ color: '#1f2937' }}
-                  />
-                  <span className="text-gray-400 text-xs">to</span>
-                  <Input
-                    type="date"
-                    value={chartEndDate}
-                    onChange={(e) => setChartEndDate(e.target.value)}
-                    className="w-32 h-8 text-xs bg-white border-gray-200"
-                    style={{ color: '#1f2937' }}
-                  />
-                </div>
-              </div>
+            <div className="mb-4">
+              <h3 className="text-base font-semibold text-gray-900">Sales Trend</h3>
+              <p className="text-xs text-gray-500">Sales performance by executive over time</p>
             </div>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={salesTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 10, fill: '#6b7280' }} 
-                  axisLine={false} 
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis 
-                  tick={{ fontSize: 10, fill: '#6b7280' }} 
-                  axisLine={false} 
-                  tickLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip 
-                  contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                {getExecutives().map((exec, index) => (
+                {getExecutives().slice(0, 5).map((exec, index) => (
                   <Line
                     key={exec}
                     type="monotone"
@@ -404,6 +481,43 @@ const Dashboard = ({ user, onLogout }) => {
             </ResponsiveContainer>
           </Card>
 
+          {/* Enquiry and Bookings Trend Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Enquiry Trend */}
+            <Card className="p-5 bg-white rounded-xl shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-gray-900">Enquiry Trend</h3>
+                <p className="text-xs text-gray-500">Enquiries over time</p>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={enquiryTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="Count" name="Enquiries" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3, fill: '#3b82f6' }} activeDot={{ r: 5 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+
+            {/* Bookings Trend */}
+            <Card className="p-5 bg-white rounded-xl shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-base font-semibold text-gray-900">Bookings Trend</h3>
+                <p className="text-xs text-gray-500">Bookings over time</p>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={bookingsTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} />
+                  <Line type="monotone" dataKey="Count" name="Bookings" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 5 }} connectNulls />
+                </LineChart>
+              </ResponsiveContainer>
+            </Card>
+          </div>
+
           {/* Bottom Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Category Pie Chart */}
@@ -411,15 +525,7 @@ const Dashboard = ({ user, onLogout }) => {
               <h3 className="text-base font-semibold text-gray-900 mb-3">Sales by Category</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie
-                    data={getCategoryDistribution()}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={70}
-                    dataKey="value"
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                  >
+                  <Pie data={getCategoryDistribution()} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}>
                     {getCategoryDistribution().map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} style={{ cursor: 'pointer' }} />
                     ))}
@@ -442,21 +548,9 @@ const Dashboard = ({ user, onLogout }) => {
               <h3 className="text-base font-semibold text-gray-900 mb-3">Payment Mode</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
-                  <Pie
-                    data={getPaymentDistribution()}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={70}
-                    dataKey="value"
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
-                  >
+                  <Pie data={getPaymentDistribution()} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`} labelLine={false}>
                     {getPaymentDistribution().map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.name === 'Cash' ? '#10b981' : '#8b5cf6'} 
-                        style={{ cursor: 'pointer' }}
-                      />
+                      <Cell key={`cell-${index}`} fill={entry.name === 'Cash' ? '#10b981' : '#8b5cf6'} style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value, name) => [value, name]} />
@@ -479,23 +573,9 @@ const Dashboard = ({ user, onLogout }) => {
                 <BarChart data={getExecutivePerformance()} layout="vertical" margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
                   <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    dataKey="name" 
-                    type="category" 
-                    tick={{ fontSize: 10 }} 
-                    width={60} 
-                    axisLine={false} 
-                    tickLine={false}
-                    tickFormatter={(value) => value.length > 8 ? value.substring(0, 8) + '..' : value}
-                  />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={60} axisLine={false} tickLine={false} tickFormatter={(value) => value.length > 8 ? value.substring(0, 8) + '..' : value} />
                   <Tooltip formatter={(value) => [value, 'Sales']} cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }} />
-                  <Bar 
-                    dataKey="sales" 
-                    fill="#6366f1" 
-                    radius={[0, 4, 4, 0]}
-                    style={{ cursor: 'pointer' }}
-                    onClick={(data) => handleExecutiveDrillDown(data.name)}
-                  />
+                  <Bar dataKey="sales" fill="#6366f1" radius={[0, 4, 4, 0]} style={{ cursor: 'pointer' }} onClick={(data) => handleExecutiveDrillDown(data.name)} />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
