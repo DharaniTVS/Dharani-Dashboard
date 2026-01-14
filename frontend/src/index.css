@@ -98,39 +98,55 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 /* Select dropdown item hover/focus state fix - ensure cursor visibility */
 [data-radix-select-viewport] [data-highlighted] {
-  background-color: rgb(238 242 255) !important;
-  color: rgb(31 41 55) !important;
+  background-color: #f3f4f6 !important;
+  color: #1f2937 !important;
   cursor: pointer !important;
 }
 
 [data-radix-select-viewport] [role="option"] {
   cursor: pointer !important;
-  color: rgb(31 41 55) !important;
+  color: #1f2937 !important;
+  padding: 8px 12px;
 }
 
 [data-radix-select-viewport] [role="option"]:hover,
 [data-radix-select-viewport] [role="option"]:focus,
 [data-radix-select-viewport] [role="option"][data-highlighted="true"] {
-  background-color: rgb(238 242 255) !important;
-  color: rgb(31 41 55) !important;
+  background-color: #f3f4f6 !important;
+  color: #1f2937 !important;
   cursor: pointer !important;
 }
 
 /* Ensure SelectContent has proper z-index and styling */
 [data-radix-select-content] {
-  z-index: 100 !important;
+  z-index: 9999 !important;
   background-color: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Fix for any element that might be blocking cursor */
-.recharts-wrapper,
-.recharts-surface {
-  cursor: default;
+/* Fix for Recharts cursor */
+.recharts-wrapper {
+  cursor: default !important;
 }
 
-.recharts-wrapper .recharts-bar-rectangle,
-.recharts-wrapper .recharts-pie-sector {
-  cursor: pointer;
+.recharts-bar-rectangle,
+.recharts-pie-sector,
+.recharts-line-dot {
+  cursor: pointer !important;
+}
+
+/* Global cursor fix for interactive elements */
+button, 
+[role="button"],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* Select trigger cursor */
+[data-radix-select-trigger] {
+  cursor: pointer !important;
 }
 
 /* Dark mode body styles */
