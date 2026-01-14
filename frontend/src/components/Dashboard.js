@@ -558,17 +558,22 @@ const Dashboard = ({ user, onLogout }) => {
               </div>
               <div className="space-y-3">
                 {getModelDistribution().map((model, index) => (
-                  <div key={model.name} className="flex items-center gap-3" data-testid={`model-item-${index}`}>
+                  <div 
+                    key={model.name} 
+                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 p-2 rounded-lg transition-colors" 
+                    data-testid={`model-item-${index}`}
+                    onClick={() => handleModelDrillDown(model.fullName)}
+                  >
                     <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs"
                          style={{ backgroundColor: COLORS[index % COLORS.length] }}>
                       {index + 1}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-900" title={model.fullName}>{model.name}</span>
-                        <span className="text-sm font-bold text-gray-700">{model.value}</span>
+                        <span className="text-sm font-medium text-gray-900 dark:text-white" title={model.fullName}>{model.name}</span>
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{model.value}</span>
                       </div>
-                      <div className="w-full bg-gray-100 rounded-full h-1.5">
+                      <div className="w-full bg-gray-100 dark:bg-slate-600 rounded-full h-1.5">
                         <div 
                           className="h-1.5 rounded-full transition-all duration-500"
                           style={{ 
@@ -589,6 +594,69 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Drill-down Modal */}
+      {drillDownData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="bg-white dark:bg-slate-800 rounded-2xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">{drillDownTitle}</h3>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={exportDrillDownToCSV}
+                >
+                  <Download className="w-4 h-4 mr-1" /> CSV
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={exportDrillDownToPDF}
+                  className="bg-indigo-600"
+                >
+                  <FileDown className="w-4 h-4 mr-1" /> PDF
+                </Button>
+                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 text-sm text-gray-600 dark:text-gray-400">
+              {drillDownData.length} records found
+            </div>
+            <div className="overflow-auto max-h-[60vh]">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0">
+                  <tr>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Date</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Customer</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Phone</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Model</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Category</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Executive</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Cost</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-slate-600">
+                  {drillDownData.map((record, index) => (
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700">
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Sales Date'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">{record['Customer Name'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Mobile No'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Vehicle Model'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Category'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Executive Name'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white font-medium">
+                        ₹{record['Vehicle Cost (₹)'] || Object.entries(record).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
