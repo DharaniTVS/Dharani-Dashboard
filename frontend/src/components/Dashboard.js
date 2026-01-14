@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
+import { Input } from './ui/input';
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, ArrowUpRight, ArrowDownRight, BarChart3, DollarSign, Target, Activity, RefreshCw } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, ArrowUpRight, ArrowDownRight, BarChart3, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileDown, X } from 'lucide-react';
 import { Button } from './ui/button';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -22,6 +25,14 @@ const Dashboard = ({ user, onLogout }) => {
     totalRevenue: 0
   });
   const [weeklyTrend, setWeeklyTrend] = useState([]);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [lastSync, setLastSync] = useState(null);
+  
+  // Drill-down state
+  const [drillDownData, setDrillDownData] = useState(null);
+  const [drillDownTitle, setDrillDownTitle] = useState('');
 
   useEffect(() => {
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
@@ -35,11 +46,35 @@ const Dashboard = ({ user, onLogout }) => {
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/sheets/sales-data`, {
+        params: { branch: selectedBranch }
+      });
+      setSalesData(response.data.data || []);
+      setLastSync(new Date());
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedBranch]);
+
   useEffect(() => {
     if (selectedBranch) {
       fetchData();
     }
-  }, [selectedBranch]);
+  }, [selectedBranch, fetchData]);
+
+  // Auto-sync every 30 seconds
+  useEffect(() => {
+    if (!autoSyncEnabled) return;
+    const interval = setInterval(() => {
+      fetchData();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [autoSyncEnabled, fetchData]);
 
   useEffect(() => {
     if (salesData.length > 0) {
@@ -47,20 +82,6 @@ const Dashboard = ({ user, onLogout }) => {
       calculateWeeklyTrend();
     }
   }, [salesData]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.get(`${API}/sheets/sales-data`, {
-        params: { branch: selectedBranch }
-      });
-      setSalesData(response.data.data || []);
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const calculateStats = () => {
     const totalSold = salesData.length;
