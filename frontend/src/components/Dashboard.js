@@ -242,41 +242,51 @@ const Dashboard = ({ user, onLogout }) => {
   const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(value);
 
   const exportDrillDownToCSV = () => {
-    if (!drillDownData) return;
-    const headers = Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch');
+    if (!drillDownData || drillDownData.length === 0) return;
+    
+    // Get all unique headers from the data (excluding Branch)
+    const headers = [...new Set(drillDownData.flatMap(row => Object.keys(row)))].filter(k => k !== 'Branch');
+    
     const csvContent = [
       headers.join(','),
-      ...drillDownData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+      ...drillDownData.map(row => headers.map(h => `"${String(row[h] || '').replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${drillDownTitle.toLowerCase().replace(/\s/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportDrillDownToPDF = () => {
-    if (!drillDownData) return;
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(18);
+    if (!drillDownData || drillDownData.length === 0) return;
+    
+    const doc = new jsPDF('landscape', 'mm', 'a3');
+    doc.setFontSize(16);
     doc.setTextColor(99, 102, 241);
-    doc.text(drillDownTitle, 20, 20);
+    doc.text(drillDownTitle, 20, 15);
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Total Records: ${drillDownData.length} | Generated: ${new Date().toLocaleString()}`, 20, 22);
+
+    // Get all unique headers (excluding Branch)
+    const headers = [...new Set(drillDownData.flatMap(row => Object.keys(row)))].filter(k => k !== 'Branch');
 
     autoTable(doc, {
-      startY: 35,
-      head: [['Date', 'Customer', 'Phone', 'Model', 'Category', 'Cost']],
-      body: drillDownData.map(row => [
-        row['Sales Date'] || '-',
-        (row['Customer Name'] || '-').substring(0, 20),
-        row['Mobile No'] || '-',
-        (row['Vehicle Model'] || '-').substring(0, 15),
-        row['Category'] || '-',
-        row['Vehicle Cost (₹)'] || '-'
-      ]),
+      startY: 28,
+      head: [headers.map(h => h.length > 15 ? h.substring(0, 15) + '..' : h)],
+      body: drillDownData.map(row => 
+        headers.map(h => {
+          const value = row[h] || '-';
+          return String(value).length > 20 ? String(value).substring(0, 20) + '..' : String(value);
+        })
+      ),
       theme: 'striped',
-      headStyles: { fillColor: [99, 102, 241] }
+      headStyles: { fillColor: [99, 102, 241], fontSize: 6, cellPadding: 1 },
+      styles: { fontSize: 6, cellPadding: 1 }
     });
 
     doc.save(`${drillDownTitle.toLowerCase().replace(/\s/g, '-')}.pdf`);
