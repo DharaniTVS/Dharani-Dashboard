@@ -69,12 +69,12 @@ const Sidebar = ({ user, onLogout }) => {
             <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="branch-selector">
               <SelectValue className="text-gray-900" />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent className="bg-white z-[100]">
               {branches.map(branch => (
                 <SelectItem 
                   key={branch} 
                   value={branch}
-                  className="text-gray-900 hover:bg-gray-100 focus:bg-gray-100 cursor-pointer"
+                  className="text-gray-900 hover:bg-indigo-50 focus:bg-indigo-100 focus:text-gray-900 cursor-pointer data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900"
                 >
                   {branch}
                 </SelectItem>
