@@ -598,15 +598,19 @@ async def upload_service_pdf(
         today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         await db.service_reports.delete_many({"branch": branch, "date": today})
         
+        # Prepare response data before inserting (to avoid ObjectId serialization issues)
+        response_data = []
         if extracted_data:
             for record in extracted_data:
                 record['date'] = today
                 record['uploaded_at'] = datetime.now(timezone.utc).isoformat()
+                # Store a copy for response (without _id)
+                response_data.append(dict(record))
             await db.service_reports.insert_many(extracted_data)
         
         return {
-            "message": f"Successfully extracted {len(extracted_data)} records",
-            "data": extracted_data,
+            "message": f"Successfully extracted {len(response_data)} records",
+            "data": response_data,
             "filename": file.filename
         }
         
