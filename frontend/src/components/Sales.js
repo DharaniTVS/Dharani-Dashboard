@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Search, Filter, Download, Calendar } from 'lucide-react';
+import { Search, Filter, Download, Calendar, RefreshCw, FileDown, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -21,13 +23,17 @@ const Sales = ({ user, onLogout }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [executives, setExecutives] = useState([]);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [lastSync, setLastSync] = useState(null);
+  
+  // Drill-down state
+  const [drillDownData, setDrillDownData] = useState(null);
+  const [drillDownTitle, setDrillDownTitle] = useState('');
 
   useEffect(() => {
-    // Get initial branch from localStorage
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
     setSelectedBranch(savedBranch);
     
-    // Listen for branch changes from sidebar
     const handleBranchChange = (event) => {
       setSelectedBranch(event.detail);
     };
@@ -39,18 +45,7 @@ const Sales = ({ user, onLogout }) => {
     };
   }, []);
 
-  useEffect(() => {
-    if (selectedBranch) {
-      fetchData();
-      fetchExecutives();
-    }
-  }, [selectedBranch]);
-
-  useEffect(() => {
-    applyFilters();
-  }, [searchTerm, selectedExecutive, startDate, endDate, salesData]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.get(`${API}/sheets/sales-data`, {
@@ -58,14 +53,15 @@ const Sales = ({ user, onLogout }) => {
       });
       setSalesData(response.data.data || []);
       setFilteredData(response.data.data || []);
+      setLastSync(new Date());
     } catch (error) {
       console.error('Failed to fetch sales data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedBranch]);
 
-  const fetchExecutives = async () => {
+  const fetchExecutives = useCallback(async () => {
     try {
       const response = await axios.get(`${API}/sheets/executives`, {
         params: { branch: selectedBranch }
@@ -74,12 +70,33 @@ const Sales = ({ user, onLogout }) => {
     } catch (error) {
       console.error('Failed to fetch executives:', error);
     }
-  };
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    if (selectedBranch) {
+      fetchData();
+      fetchExecutives();
+    }
+  }, [selectedBranch, fetchData, fetchExecutives]);
+
+  // Auto-sync every 30 seconds
+  useEffect(() => {
+    if (!autoSyncEnabled) return;
+    
+    const interval = setInterval(() => {
+      fetchData();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [autoSyncEnabled, fetchData]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, selectedExecutive, startDate, endDate, salesData]);
 
   const applyFilters = () => {
     let filtered = [...salesData];
 
-    // Search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(record => 
@@ -89,12 +106,10 @@ const Sales = ({ user, onLogout }) => {
       );
     }
 
-    // Executive filter
     if (selectedExecutive && selectedExecutive !== 'all') {
       filtered = filtered.filter(record => record['Executive Name'] === selectedExecutive);
     }
 
-    // Date filter
     if (startDate && endDate) {
       filtered = filtered.filter(record => {
         const saleDate = record['Sales Date'] || '';
@@ -112,12 +127,27 @@ const Sales = ({ user, onLogout }) => {
     setEndDate('');
   };
 
-  const exportToCSV = () => {
+  // Drill-down function - filter by executive
+  const handleDrillDown = (executive) => {
+    const data = salesData.filter(record => record['Executive Name'] === executive);
+    setDrillDownData(data);
+    setDrillDownTitle(`Sales by ${executive}`);
+  };
+
+  const closeDrillDown = () => {
+    setDrillDownData(null);
+    setDrillDownTitle('');
+  };
+
+  const exportToCSV = (data = filteredData, filename = 'sales') => {
     const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name', 'Vehicle Cost (₹)', 'Cash/HP', 'Financier Name'];
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => 
-        headers.map(header => `"${row[header] || ''}"`).join(',')
+      ...data.map(row => 
+        headers.map(header => {
+          const value = row[header] || Object.entries(row).find(([k]) => k.toLowerCase().includes(header.toLowerCase().split(' ')[0]))?.[1] || '';
+          return `"${value}"`;
+        }).join(',')
       )
     ].join('\n');
 
@@ -125,48 +155,115 @@ const Sales = ({ user, onLogout }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `sales-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${filename}-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
+  const exportToPDF = (data = filteredData, title = 'Sold Vehicles') => {
+    const doc = new jsPDF('landscape');
+    
+    doc.setFontSize(18);
+    doc.setTextColor(99, 102, 241);
+    doc.text(`${title} - ${selectedBranch}`, 20, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 28);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 34);
+    doc.text(`Total Records: ${data.length}`, 20, 40);
+
+    const headers = ['Date', 'Customer', 'Phone', 'Model', 'Category', 'Executive', 'Cost', 'Payment'];
+    
+    doc.autoTable({
+      startY: 46,
+      head: [headers],
+      body: data.map(row => [
+        row['Sales Date'] || '-',
+        (row['Customer Name'] || '-').substring(0, 20),
+        row['Mobile No'] || '-',
+        (row['Vehicle Model'] || '-').substring(0, 15),
+        row['Category'] || '-',
+        (row['Executive Name'] || '-').substring(0, 12),
+        row['Vehicle Cost (₹)'] || Object.entries(row).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-',
+        row['Cash/HP'] || '-'
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [99, 102, 241] },
+      styles: { fontSize: 8, cellPadding: 2 }
+    });
+
+    doc.save(`${title.toLowerCase().replace(/\s/g, '-')}-${selectedBranch}-${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   return (
-    <div className="flex bg-gray-50 min-h-screen" data-testid="sales-page">
+    <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="sales-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-8 py-6">
+        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sold Vehicles - {selectedBranch}</h1>
-              <p className="text-sm text-gray-600 mt-1">View completed sales from {selectedBranch} branch</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sold Vehicles - {selectedBranch}</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Completed sales • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
+                {loading && <span className="ml-2 text-indigo-600">Syncing...</span>}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <Button 
                 variant="outline" 
-                className="gap-2 text-gray-700 border-gray-300 hover:bg-gray-100"
-                onClick={exportToCSV}
-                data-testid="export-button"
+                className="gap-2 text-gray-600"
+                onClick={fetchData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button 
+                variant="outline" 
+                className="gap-2 text-gray-600"
+                onClick={() => exportToCSV()}
               >
                 <Download className="w-4 h-4" />
-                Export CSV
+                CSV
+              </Button>
+              <Button 
+                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                onClick={() => exportToPDF()}
+              >
+                <FileDown className="w-4 h-4" />
+                PDF
               </Button>
             </div>
+          </div>
+          {/* Auto-sync indicator */}
+          <div className="mt-3 flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+            <span className="text-xs text-gray-500">
+              Auto-sync {autoSyncEnabled ? 'enabled' : 'disabled'} (every 30s)
+            </span>
+            <button 
+              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+              className="text-xs text-indigo-600 hover:underline"
+            >
+              {autoSyncEnabled ? 'Disable' : 'Enable'}
+            </button>
           </div>
         </div>
 
         <div className="p-8">
-          {/* Filters Section - Removed Branch filter as it's in sidebar */}
-          <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
+          {/* Filters Section */}
+          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 mb-6">
             <div className="flex items-center gap-2 mb-4">
               <Filter className="w-5 h-5 text-gray-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Filters</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h3>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Search */}
               <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
@@ -174,23 +271,23 @@ const Sales = ({ user, onLogout }) => {
                     placeholder="Search by name, phone, model..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white text-gray-900 border-gray-300"
+                    className="pl-10 bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
                     data-testid="search-input"
                   />
                 </div>
               </div>
 
-              {/* Executive Filter */}
+              {/* Executive Filter - Clickable for drill-down */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Executive</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Executive</label>
                 <Select value={selectedExecutive} onValueChange={setSelectedExecutive}>
-                  <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="executive-filter">
-                    <SelectValue placeholder="All Executives" className="text-gray-900" />
+                  <SelectTrigger className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600">
+                    <SelectValue placeholder="All Executives" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white">
-                    <SelectItem value="all" className="text-gray-900 hover:bg-gray-100">All Executives</SelectItem>
+                  <SelectContent className="bg-white dark:bg-slate-700">
+                    <SelectItem value="all" className="text-gray-900 dark:text-white">All Executives</SelectItem>
                     {executives.map(executive => (
-                      <SelectItem key={executive} value={executive} className="text-gray-900 hover:bg-gray-100">{executive}</SelectItem>
+                      <SelectItem key={executive} value={executive} className="text-gray-900 dark:text-white">{executive}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -201,8 +298,7 @@ const Sales = ({ user, onLogout }) => {
                 <Button 
                   variant="outline" 
                   onClick={resetFilters}
-                  className="w-full text-gray-700 border-gray-300 hover:bg-gray-100"
-                  data-testid="reset-filters"
+                  className="w-full text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600"
                 >
                   Reset Filters
                 </Button>
@@ -212,7 +308,7 @@ const Sales = ({ user, onLogout }) => {
             {/* Date Range */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
                   Start Date
                 </label>
@@ -220,12 +316,11 @@ const Sales = ({ user, onLogout }) => {
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="bg-white text-gray-900 border-gray-300"
-                  data-testid="start-date"
+                  className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   <Calendar className="w-4 h-4 inline mr-1" />
                   End Date
                 </label>
@@ -233,77 +328,84 @@ const Sales = ({ user, onLogout }) => {
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="bg-white text-gray-900 border-gray-300"
-                  data-testid="end-date"
+                  className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
                 />
               </div>
             </div>
 
             <div className="mt-4 flex items-center justify-between">
-              <p className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{filteredData.length}</span> of{' '}
-                <span className="font-semibold text-gray-900">{salesData.length}</span> records
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Showing <span className="font-semibold text-gray-900 dark:text-white">{filteredData.length}</span> of{' '}
+                <span className="font-semibold text-gray-900 dark:text-white">{salesData.length}</span> records
               </p>
             </div>
           </Card>
 
           {/* Data Table */}
-          <Card className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
             <div className="overflow-x-auto">
               {loading ? (
-                <div className="p-8 text-center text-gray-600">
+                <div className="p-8 text-center text-gray-600 dark:text-gray-400">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
                   Loading sales data...
                 </div>
               ) : filteredData.length === 0 ? (
-                <div className="p-8 text-center text-gray-600">No records found</div>
+                <div className="p-8 text-center text-gray-600 dark:text-gray-400">No records found</div>
               ) : (
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+                  <thead className="bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Sales Date</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Mobile No</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Vehicle Model</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Category</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Executive</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Vehicle Cost (₹)</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Payment</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Financier</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Sales Date</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Customer Name</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Mobile No</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Vehicle Model</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Category</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6 cursor-pointer hover:text-indigo-600">Executive ↓</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Vehicle Cost</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Payment</th>
+                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Financier</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-gray-200 dark:divide-slate-600">
                     {filteredData.map((record, index) => (
                       <tr 
                         key={index} 
-                        className="hover:bg-gray-50 transition-colors"
-                        data-testid={`sales-row-${index}`}
+                        className="hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Sales Date'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-gray-900">{record['Customer Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Mobile No'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Vehicle Model'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white">{record['Sales Date'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-gray-900 dark:text-white">{record['Customer Name'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">{record['Mobile No'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white">{record['Vehicle Model'] || '-'}</td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Category'] === 'Sports' ? 'bg-red-100 text-red-700' :
-                            record['Category'] === 'Scooter' ? 'bg-blue-100 text-blue-700' :
-                            record['Category'] === 'EV' ? 'bg-green-100 text-green-700' :
-                            record['Category'] === 'Moped' ? 'bg-yellow-100 text-yellow-700' :
-                            'bg-gray-100 text-gray-700'
+                            record['Category'] === 'Sports' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
+                            record['Category'] === 'Scooter' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                            record['Category'] === 'EV' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                            record['Category'] === 'Moped' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
+                            'bg-gray-100 text-gray-700 dark:bg-slate-600 dark:text-gray-300'
                           }`}>
                             {record['Category'] || '-'}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900 font-medium">₹{record['Vehicle Cost (₹)'] || '-'}</td>
+                        <td className="py-4 px-6">
+                          <button 
+                            onClick={() => handleDrillDown(record['Executive Name'])}
+                            className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                          >
+                            {record['Executive Name'] || '-'}
+                          </button>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white font-medium">
+                          ₹{record['Vehicle Cost (₹)'] || Object.entries(record).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'}
+                        </td>
                         <td className="py-4 px-6">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                            record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                           }`}>
                             {record['Cash/HP'] || '-'}
                           </span>
                         </td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Financier Name'] || '-'}</td>
+                        <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">{record['Financier Name'] || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -313,6 +415,69 @@ const Sales = ({ user, onLogout }) => {
           </Card>
         </div>
       </div>
+
+      {/* Drill-down Modal */}
+      {drillDownData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card className="bg-white dark:bg-slate-800 rounded-2xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">{drillDownTitle}</h3>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => exportToCSV(drillDownData, drillDownTitle.toLowerCase().replace(/\s/g, '-'))}
+                >
+                  <Download className="w-4 h-4 mr-1" /> CSV
+                </Button>
+                <Button 
+                  size="sm"
+                  onClick={() => exportToPDF(drillDownData, drillDownTitle)}
+                  className="bg-indigo-600"
+                >
+                  <FileDown className="w-4 h-4 mr-1" /> PDF
+                </Button>
+                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4 text-sm text-gray-600 dark:text-gray-400">
+              {drillDownData.length} records found
+            </div>
+            <div className="overflow-auto max-h-[60vh]">
+              <table className="w-full">
+                <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0">
+                  <tr>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Date</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Customer</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Phone</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Model</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Category</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Cost</th>
+                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Payment</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-slate-600">
+                  {drillDownData.map((record, index) => (
+                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700">
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Sales Date'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">{record['Customer Name'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Mobile No'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Vehicle Model'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Category'] || '-'}</td>
+                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white font-medium">
+                        ₹{record['Vehicle Cost (₹)'] || Object.entries(record).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Cash/HP'] || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
