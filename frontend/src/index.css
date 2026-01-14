@@ -96,17 +96,41 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
-/* Select dropdown item hover/focus state fix */
+/* Select dropdown item hover/focus state fix - ensure cursor visibility */
 [data-radix-select-viewport] [data-highlighted] {
   background-color: rgb(238 242 255) !important;
   color: rgb(31 41 55) !important;
   cursor: pointer !important;
 }
 
-[data-radix-select-viewport] [role="option"]:hover {
+[data-radix-select-viewport] [role="option"] {
+  cursor: pointer !important;
+  color: rgb(31 41 55) !important;
+}
+
+[data-radix-select-viewport] [role="option"]:hover,
+[data-radix-select-viewport] [role="option"]:focus,
+[data-radix-select-viewport] [role="option"][data-highlighted="true"] {
   background-color: rgb(238 242 255) !important;
   color: rgb(31 41 55) !important;
   cursor: pointer !important;
+}
+
+/* Ensure SelectContent has proper z-index and styling */
+[data-radix-select-content] {
+  z-index: 100 !important;
+  background-color: white !important;
+}
+
+/* Fix for any element that might be blocking cursor */
+.recharts-wrapper,
+.recharts-surface {
+  cursor: default;
+}
+
+.recharts-wrapper .recharts-bar-rectangle,
+.recharts-wrapper .recharts-pie-sector {
+  cursor: pointer;
 }
 
 /* Dark mode body styles */
