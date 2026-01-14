@@ -61,26 +61,28 @@ const Sidebar = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Branch Selector */}
-      <div className="mx-4 mt-4">
-        <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Branch</label>
-        <Select value={selectedBranch} onValueChange={handleBranchChange}>
-          <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="branch-selector">
-            <SelectValue className="text-gray-900" />
-          </SelectTrigger>
-          <SelectContent className="bg-white">
-            {branches.map(branch => (
-              <SelectItem 
-                key={branch} 
-                value={branch}
-                className="text-gray-900 hover:bg-gray-100 focus:bg-gray-100 cursor-pointer"
-              >
-                {branch}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Branch Selector - Hide only on Main Dashboard */}
+      {!isActive('/global') && (
+        <div className="mx-4 mt-4">
+          <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Branch</label>
+          <Select value={selectedBranch} onValueChange={handleBranchChange}>
+            <SelectTrigger className="bg-white text-gray-900 border-gray-300" data-testid="branch-selector">
+              <SelectValue className="text-gray-900" />
+            </SelectTrigger>
+            <SelectContent className="bg-white">
+              {branches.map(branch => (
+                <SelectItem 
+                  key={branch} 
+                  value={branch}
+                  className="text-gray-900 hover:bg-gray-100 focus:bg-gray-100 cursor-pointer"
+                >
+                  {branch}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-6 space-y-1">
@@ -96,23 +98,21 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
-        {/* Show branch-specific menu only when NOT on Main Dashboard */}
-        {!isActive('/global') && (
-          <>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
-              Branch: {selectedBranch}
-            </div>
-            
-            {/* Sales with Submenu */}
-            <div>
-              <button
-                onClick={() => setIsSalesOpen(!isSalesOpen)}
-                className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
-                data-testid="nav-sales"
-              >
-                <div className="flex items-center gap-3">
-                  <ShoppingCart className="w-5 h-5" />
-                  <span className="text-sm font-medium">Sales</span>
+        {/* Sales Menu - Always visible */}
+        <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
+          {!isActive('/global') && `Branch: ${selectedBranch}`}
+        </div>
+        
+        {/* Sales with Submenu */}
+        <div>
+          <button
+            onClick={() => setIsSalesOpen(!isSalesOpen)}
+            className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 hover:text-gray-900 dark:hover:text-white transition-all duration-200"
+            data-testid="nav-sales"
+          >
+            <div className="flex items-center gap-3">
+              <ShoppingCart className="w-5 h-5" />
+              <span className="text-sm font-medium">Sales</span>
             </div>
             {isSalesOpen ? (
               <ChevronDown className="w-4 h-4" />
