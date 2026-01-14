@@ -140,56 +140,69 @@ const Sales = ({ user, onLogout }) => {
   };
 
   const exportToCSV = (data = filteredData, filename = 'sales') => {
-    const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name', 'Vehicle Cost (₹)', 'Cash/HP', 'Financier Name'];
+    if (!data || data.length === 0) {
+      alert('No data to export');
+      return;
+    }
+    
+    // Get all unique headers from the data (excluding Branch)
+    const allHeaders = [...new Set(data.flatMap(row => Object.keys(row)))].filter(h => h !== 'Branch');
+    
     const csvContent = [
-      headers.join(','),
+      allHeaders.join(','),
       ...data.map(row => 
-        headers.map(header => {
-          const value = row[header] || Object.entries(row).find(([k]) => k.toLowerCase().includes(header.toLowerCase().split(' ')[0]))?.[1] || '';
-          return `"${value}"`;
+        allHeaders.map(header => {
+          const value = row[header] || '';
+          // Escape quotes and wrap in quotes
+          return `"${String(value).replace(/"/g, '""')}"`;
         }).join(',')
       )
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${filename}-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportToPDF = (data = filteredData, title = 'Sold Vehicles') => {
-    const doc = new jsPDF('landscape');
+    if (!data || data.length === 0) {
+      alert('No data to export');
+      return;
+    }
     
-    doc.setFontSize(18);
+    const doc = new jsPDF('landscape', 'mm', 'a3'); // Use A3 for more columns
+    
+    doc.setFontSize(16);
     doc.setTextColor(99, 102, 241);
-    doc.text(`${title} - ${selectedBranch}`, 20, 20);
+    doc.text(`${title} - ${selectedBranch}`, 20, 15);
     
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 28);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 34);
-    doc.text(`Total Records: ${data.length}`, 20, 40);
+    doc.text(`Date Range: ${startDate || 'All'} to ${endDate || 'All'} | Generated: ${new Date().toLocaleString()} | Total Records: ${data.length}`, 20, 22);
 
-    const headers = ['Date', 'Customer', 'Phone', 'Model', 'Category', 'Executive', 'Cost', 'Payment'];
+    // Get all unique headers (excluding Branch)
+    const allHeaders = [...new Set(data.flatMap(row => Object.keys(row)))].filter(h => h !== 'Branch');
     
     autoTable(doc, {
-      startY: 46,
-      head: [headers],
-      body: data.map(row => [
-        row['Sales Date'] || '-',
-        (row['Customer Name'] || '-').substring(0, 20),
-        row['Mobile No'] || '-',
-        (row['Vehicle Model'] || '-').substring(0, 15),
-        row['Category'] || '-',
-        (row['Executive Name'] || '-').substring(0, 12),
-        row['Vehicle Cost (₹)'] || Object.entries(row).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-',
-        row['Cash/HP'] || '-'
-      ]),
+      startY: 28,
+      head: [allHeaders.map(h => h.length > 15 ? h.substring(0, 15) + '..' : h)],
+      body: data.map(row => 
+        allHeaders.map(header => {
+          const value = row[header] || '-';
+          return String(value).length > 20 ? String(value).substring(0, 20) + '..' : String(value);
+        })
+      ),
       theme: 'striped',
-      headStyles: { fillColor: [99, 102, 241] },
-      styles: { fontSize: 8, cellPadding: 2 }
+      headStyles: { fillColor: [99, 102, 241], fontSize: 6, cellPadding: 1 },
+      styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak' },
+      columnStyles: allHeaders.reduce((acc, _, idx) => {
+        acc[idx] = { cellWidth: 'auto' };
+        return acc;
+      }, {})
     });
 
     doc.save(`${title.toLowerCase().replace(/\s/g, '-')}-${selectedBranch}-${new Date().toISOString().split('T')[0]}.pdf`);
