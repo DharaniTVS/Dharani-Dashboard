@@ -564,11 +564,11 @@ app.include_router(api_router)
 cors_origins = os.environ.get('CORS_ORIGINS', '*')
 if cors_origins == '*':
     # Get the frontend URL from environment or use defaults
-    frontend_url = os.environ.get('FRONTEND_URL', 'https://sales-insights-86.preview.emergentagent.com')
+    frontend_url = os.environ.get('FRONTEND_URL', 'https://tvs-command-hub.preview.emergentagent.com')
     cors_origins_list = [
         frontend_url,
         'http://localhost:3000',
-        'https://sales-insights-86.preview.emergentagent.com'
+        'https://tvs-command-hub.preview.emergentagent.com'
     ]
 else:
     cors_origins_list = [origin.strip() for origin in cors_origins.split(',')]
