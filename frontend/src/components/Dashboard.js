@@ -438,6 +438,20 @@ const Dashboard = ({ user, onLogout }) => {
               <Button onClick={handleSubmit} className="h-9 bg-indigo-600 hover:bg-indigo-700">
                 <Search className="w-4 h-4 mr-1" /> Submit
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setTrendPeriod('daily');
+                  setSelectedExecutive('all');
+                  setSelectedCategory('all');
+                  setTimeout(() => applyFiltersAndCalculate(), 100);
+                }} 
+                className="h-9 text-gray-600 hover:text-gray-800"
+              >
+                <X className="w-4 h-4 mr-1" /> Reset
+              </Button>
             </div>
           </Card>
 
