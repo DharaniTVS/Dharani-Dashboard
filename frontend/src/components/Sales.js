@@ -174,7 +174,7 @@ const Sales = ({ user, onLogout }) => {
 
     const headers = ['Date', 'Customer', 'Phone', 'Model', 'Category', 'Executive', 'Cost', 'Payment'];
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: 46,
       head: [headers],
       body: data.map(row => [
