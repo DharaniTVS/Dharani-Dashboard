@@ -355,15 +355,15 @@ const Sales = ({ user, onLogout }) => {
                 <table className="w-full">
                   <thead className="bg-gray-50 dark:bg-slate-700 border-b border-gray-200 dark:border-slate-600">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Sales Date</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Customer Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Mobile No</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Vehicle Model</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Category</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6 cursor-pointer hover:text-indigo-600">Executive ↓</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Vehicle Cost</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Payment</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-6">Financier</th>
+                      {/* Dynamic columns from data */}
+                      {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, idx) => (
+                        <th 
+                          key={idx}
+                          className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider py-3 px-4 whitespace-nowrap"
+                        >
+                          {column}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-slate-600">
@@ -371,41 +371,51 @@ const Sales = ({ user, onLogout }) => {
                       <tr 
                         key={index} 
                         className="hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                        data-testid={`sales-row-${index}`}
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white">{record['Sales Date'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-gray-900 dark:text-white">{record['Customer Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">{record['Mobile No'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white">{record['Vehicle Model'] || '-'}</td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Category'] === 'Sports' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
-                            record['Category'] === 'Scooter' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
-                            record['Category'] === 'EV' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
-                            record['Category'] === 'Moped' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' :
-                            'bg-gray-100 text-gray-700 dark:bg-slate-600 dark:text-gray-300'
-                          }`}>
-                            {record['Category'] || '-'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <button 
-                            onClick={() => handleDrillDown(record['Executive Name'])}
-                            className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                        {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, colIdx) => (
+                          <td 
+                            key={colIdx}
+                            className={`py-3 px-4 text-sm whitespace-nowrap ${
+                              column === 'Executive Name' 
+                                ? 'text-indigo-600 hover:text-indigo-800 cursor-pointer hover:underline' 
+                                : column.includes('Cost') || column.includes('₹') || column.includes('Value') || column.includes('Charges') || column.includes('DD') || column.includes('Balance') || column.includes('Downpayment')
+                                  ? 'text-gray-900 dark:text-white font-medium'
+                                  : 'text-gray-700 dark:text-gray-300'
+                            }`}
+                            onClick={column === 'Executive Name' ? () => handleDrillDown(record[column]) : undefined}
                           >
-                            {record['Executive Name'] || '-'}
-                          </button>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-gray-900 dark:text-white font-medium">
-                          ₹{record['Vehicle Cost (₹)'] || Object.entries(record).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Cash/HP'] === 'Cash' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-                          }`}>
-                            {record['Cash/HP'] || '-'}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-sm text-gray-600 dark:text-gray-400">{record['Financier Name'] || '-'}</td>
+                            {column === 'Category' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column] === 'Sports' ? 'bg-red-100 text-red-700' :
+                                record[column] === 'Scooter' ? 'bg-blue-100 text-blue-700' :
+                                record[column] === 'EV' ? 'bg-green-100 text-green-700' :
+                                record[column] === 'Moped' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : column === 'Cash/HP' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : column === 'Invoice Status' || column === 'Exchange Vehicle Sold Status' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column]?.toLowerCase() === 'done' || record[column]?.toLowerCase() === 'sold' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : record[column]?.toLowerCase() === 'pending' 
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-gray-100 text-gray-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : (
+                              record[column] || '-'
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
