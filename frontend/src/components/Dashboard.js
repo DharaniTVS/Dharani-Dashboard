@@ -311,27 +311,61 @@ const Dashboard = ({ user, onLogout }) => {
   }
 
   return (
-    <div className="flex bg-gray-50 min-h-screen" data-testid="dashboard-page">
+    <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="dashboard-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-8 py-5">
+        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sales Performances</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Track and analyze sales data for <span className="font-medium text-indigo-600">{selectedBranch}</span> branch
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sales Dashboard</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <span className="font-medium text-indigo-600">{selectedBranch}</span> branch • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
+                {loading && <span className="ml-2 text-indigo-600">Syncing...</span>}
               </p>
             </div>
-            <Button 
-              variant="outline" 
-              className="gap-2 text-gray-600 border-gray-200"
-              onClick={fetchData}
+            <div className="flex items-center gap-3">
+              {/* Date Filter */}
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-gray-500" />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
+                />
+                <span className="text-gray-400">-</span>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                className="gap-2 text-gray-600"
+                onClick={fetchData}
+                disabled={loading}
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
+          {/* Auto-sync indicator */}
+          <div className="mt-3 flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+            <span className="text-xs text-gray-500">
+              Auto-sync {autoSyncEnabled ? 'enabled' : 'disabled'} (every 30s)
+            </span>
+            <button 
+              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
+              className="text-xs text-indigo-600 hover:underline"
             >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </Button>
+              {autoSyncEnabled ? 'Disable' : 'Enable'}
+            </button>
           </div>
         </div>
 
@@ -346,7 +380,7 @@ const Dashboard = ({ user, onLogout }) => {
               changeType="up"
               icon={DollarSign}
               color="bg-gradient-to-br from-indigo-500 to-indigo-600"
-              bgGradient="bg-gradient-to-br from-indigo-50 to-white"
+              bgGradient="bg-gradient-to-br from-indigo-50 to-white dark:from-slate-800 dark:to-slate-700"
             />
             <StatCard
               title="Average Order Value"
