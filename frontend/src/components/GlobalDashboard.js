@@ -5,8 +5,9 @@ import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { TrendingUp, TrendingDown, Building2, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileText } from 'lucide-react';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { Building2, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileText, Users, ShoppingCart, CheckCircle, Percent } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -15,27 +16,40 @@ const API = `${BACKEND_URL}/api`;
 
 const GlobalDashboard = ({ user, onLogout }) => {
   const [allBranchData, setAllBranchData] = useState({});
+  const [allEnquiryData, setAllEnquiryData] = useState({});
+  const [allBookingsData, setAllBookingsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [lastSync, setLastSync] = useState(null);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [chartStartDate, setChartStartDate] = useState('');
+  const [chartEndDate, setChartEndDate] = useState('');
+  const [trendPeriod, setTrendPeriod] = useState('daily');
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [salesTrendData, setSalesTrendData] = useState([]);
 
   const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
 
   const fetchAllBranchData = useCallback(async () => {
     setLoading(true);
     try {
-      const results = {};
+      const salesResults = {};
+      const enquiryResults = {};
+      const bookingsResults = {};
+      
       await Promise.all(
         branches.map(async (branch) => {
-          const response = await axios.get(`${API}/sheets/sales-data`, {
-            params: { branch }
-          });
-          results[branch] = response.data.data || [];
+          const [salesRes, enquiryRes, bookingsRes] = await Promise.all([
+            axios.get(`${API}/sheets/sales-data`, { params: { branch } }),
+            axios.get(`${API}/sheets/enquiry-data`, { params: { branch } }),
+            axios.get(`${API}/sheets/bookings-data`, { params: { branch } })
+          ]);
+          salesResults[branch] = salesRes.data.data || [];
+          enquiryResults[branch] = enquiryRes.data.data || [];
+          bookingsResults[branch] = bookingsRes.data.data || [];
         })
       );
-      setAllBranchData(results);
+      setAllBranchData(salesResults);
+      setAllEnquiryData(enquiryResults);
+      setAllBookingsData(bookingsResults);
       setLastSync(new Date());
     } catch (error) {
       console.error('Failed to fetch all branch data:', error);
@@ -48,57 +62,120 @@ const GlobalDashboard = ({ user, onLogout }) => {
     fetchAllBranchData();
   }, [fetchAllBranchData]);
 
-  // Auto-sync every 30 seconds
   useEffect(() => {
     if (!autoSyncEnabled) return;
-    
     const interval = setInterval(() => {
       fetchAllBranchData();
     }, 30000);
-
     return () => clearInterval(interval);
   }, [autoSyncEnabled, fetchAllBranchData]);
 
-  const calculateBranchStats = (data) => {
-    const totalSold = data.length;
-    const totalRevenue = data.reduce((sum, record) => {
+  useEffect(() => {
+    calculateSalesTrend();
+  }, [allBranchData, trendPeriod, chartStartDate, chartEndDate]);
+
+  const calculateBranchStats = (salesData, enquiryData, bookingsData) => {
+    const totalSold = salesData.length;
+    const totalEnquiries = enquiryData.length;
+    const totalBookings = bookingsData.length;
+    const totalRevenue = salesData.reduce((sum, record) => {
       const costField = Object.entries(record).find(([key]) => key.toLowerCase().includes('vehicle cost'))?.[1] || '0';
       const cost = parseFloat(String(costField).replace(/[^0-9.]/g, ''));
       return sum + (isNaN(cost) ? 0 : cost);
     }, 0);
-    return { totalSold, totalRevenue, avgOrderValue: totalSold > 0 ? totalRevenue / totalSold : 0 };
+    const totalDC = salesData.reduce((sum, record) => {
+      const dc = parseFloat(String(record['Document Charges'] || '0').replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(dc) ? 0 : dc);
+    }, 0);
+    const totalDiscount = salesData.reduce((sum, record) => {
+      const discount = parseFloat(String(record['Discount Operated (₹)'] || record['Discount Operated'] || '0').replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(discount) ? 0 : discount);
+    }, 0);
+    const conversionRate = totalEnquiries > 0 ? ((totalSold / totalEnquiries) * 100).toFixed(1) : 0;
+    
+    return { totalSold, totalEnquiries, totalBookings, totalRevenue, totalDC, totalDiscount, conversionRate };
+  };
+
+  const calculateSalesTrend = () => {
+    const allSales = Object.values(allBranchData).flat();
+    let filteredSales = [...allSales];
+    
+    if (chartStartDate && chartEndDate) {
+      filteredSales = allSales.filter(record => {
+        const saleDate = record['Sales Date'];
+        if (!saleDate) return false;
+        return saleDate >= chartStartDate && saleDate <= chartEndDate;
+      });
+    }
+
+    const dateMap = {};
+    
+    filteredSales.forEach(record => {
+      const branch = record['Branch'] || 'Unknown';
+      let dateStr = record['Sales Date'] || '';
+      let groupKey = dateStr;
+      
+      if (trendPeriod === 'weekly' && dateStr) {
+        const date = new Date(dateStr);
+        const startOfYear = new Date(date.getFullYear(), 0, 1);
+        const weekNum = Math.ceil((((date - startOfYear) / 86400000) + startOfYear.getDay() + 1) / 7);
+        groupKey = `W${weekNum}`;
+      } else if (trendPeriod === 'monthly' && dateStr) {
+        groupKey = dateStr.substring(0, 7);
+      }
+
+      if (groupKey) {
+        if (!dateMap[groupKey]) {
+          dateMap[groupKey] = { date: groupKey };
+        }
+        dateMap[groupKey][branch] = (dateMap[groupKey][branch] || 0) + 1;
+      }
+    });
+
+    let trendData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+    if (trendData.length > 15) {
+      trendData = trendData.slice(-15);
+    }
+    setSalesTrendData(trendData);
+  };
+
+  const getTotalStats = () => {
+    let totalSold = 0, totalEnquiries = 0, totalBookings = 0, totalRevenue = 0, totalDC = 0, totalDiscount = 0;
+
+    branches.forEach(branch => {
+      const stats = calculateBranchStats(
+        allBranchData[branch] || [],
+        allEnquiryData[branch] || [],
+        allBookingsData[branch] || []
+      );
+      totalSold += stats.totalSold;
+      totalEnquiries += stats.totalEnquiries;
+      totalBookings += stats.totalBookings;
+      totalRevenue += stats.totalRevenue;
+      totalDC += stats.totalDC;
+      totalDiscount += stats.totalDiscount;
+    });
+
+    const conversionRate = totalEnquiries > 0 ? ((totalSold / totalEnquiries) * 100).toFixed(1) : 0;
+    return { totalSold, totalEnquiries, totalBookings, totalRevenue, totalDC, totalDiscount, conversionRate };
   };
 
   const getBranchComparisonData = () => {
     return branches.map(branch => {
-      const data = allBranchData[branch] || [];
-      const stats = calculateBranchStats(data);
+      const stats = calculateBranchStats(
+        allBranchData[branch] || [],
+        allEnquiryData[branch] || [],
+        allBookingsData[branch] || []
+      );
       return {
-        name: branch.substring(0, 8),
+        name: branch.substring(0, 6),
         fullName: branch,
         sales: stats.totalSold,
-        revenue: stats.totalRevenue,
-        aov: stats.avgOrderValue
+        enquiries: stats.totalEnquiries,
+        bookings: stats.totalBookings,
+        revenue: stats.totalRevenue
       };
     });
-  };
-
-  const getTotalStats = () => {
-    let totalSold = 0;
-    let totalRevenue = 0;
-
-    Object.values(allBranchData).forEach(data => {
-      const stats = calculateBranchStats(data);
-      totalSold += stats.totalSold;
-      totalRevenue += stats.totalRevenue;
-    });
-
-    return {
-      totalSold,
-      totalRevenue,
-      avgOrderValue: totalSold > 0 ? totalRevenue / totalSold : 0,
-      totalBranches: branches.length
-    };
   };
 
   const getCategoryDistribution = () => {
@@ -110,19 +187,13 @@ const GlobalDashboard = ({ user, onLogout }) => {
     return Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
   };
 
-  const getTopExecutivesAcrossBranches = () => {
-    const execMap = {};
-    Object.entries(allBranchData).forEach(([branch, data]) => {
-      data.forEach(record => {
-        const exec = record['Executive Name'] || 'Unknown';
-        const key = `${exec} (${branch.substring(0, 4)})`;
-        if (!execMap[key]) {
-          execMap[key] = { name: exec, branch, sales: 0 };
-        }
-        execMap[key].sales += 1;
-      });
+  const getPaymentDistribution = () => {
+    const paymentMap = {};
+    Object.values(allBranchData).flat().forEach(record => {
+      const payment = record['Cash/HP'] || 'Unknown';
+      paymentMap[payment] = (paymentMap[payment] || 0) + 1;
     });
-    return Object.values(execMap).sort((a, b) => b.sales - a.sales).slice(0, 10);
+    return Object.entries(paymentMap).map(([name, value]) => ({ name, value }));
   };
 
   const formatCurrency = (value) => {
@@ -139,81 +210,80 @@ const GlobalDashboard = ({ user, onLogout }) => {
     const stats = getTotalStats();
     const branchData = getBranchComparisonData();
 
-    // Title
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setTextColor(99, 102, 241);
-    doc.text('Dharani TVS - Global Dashboard Report', 20, 20);
-    
+    doc.text('Dharani TVS - Main Dashboard Report', 20, 20);
     doc.setFontSize(10);
     doc.setTextColor(100);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 28);
 
-    // Summary Stats
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text('Summary Statistics', 20, 45);
-
     autoTable(doc, {
-      startY: 50,
+      startY: 40,
       head: [['Metric', 'Value']],
       body: [
-        ['Total Revenue', formatCurrency(stats.totalRevenue)],
-        ['Total Units Sold', formatNumber(stats.totalSold)],
-        ['Average Order Value', formatCurrency(stats.avgOrderValue)],
-        ['Active Branches', stats.totalBranches.toString()]
+        ['Total Sales', formatNumber(stats.totalSold)],
+        ['Total Enquiries', formatNumber(stats.totalEnquiries)],
+        ['Total Bookings', formatNumber(stats.totalBookings)],
+        ['Conversion Rate', `${stats.conversionRate}%`],
+        ['Total DC Collected', formatCurrency(stats.totalDC)],
+        ['Total Discount', formatCurrency(stats.totalDiscount)]
       ],
       theme: 'striped',
       headStyles: { fillColor: [99, 102, 241] }
     });
 
-    // Branch Comparison
-    doc.setFontSize(14);
-    doc.text('Branch Comparison', 20, doc.lastAutoTable.finalY + 15);
-
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 20,
-      head: [['Branch', 'Sales', 'Revenue', 'Avg Order Value']],
-      body: branchData.map(b => [
-        b.fullName,
-        b.sales.toString(),
-        formatCurrency(b.revenue),
-        formatCurrency(b.aov)
-      ]),
+      startY: doc.lastAutoTable.finalY + 15,
+      head: [['Branch', 'Sales', 'Enquiries', 'Bookings', 'Revenue']],
+      body: branchData.map(b => [b.fullName, b.sales, b.enquiries, b.bookings, formatCurrency(b.revenue)]),
       theme: 'striped',
       headStyles: { fillColor: [99, 102, 241] }
     });
 
-    doc.save(`global-dashboard-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`main-dashboard-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const exportToCSV = () => {
     const branchData = getBranchComparisonData();
-    const headers = ['Branch', 'Sales', 'Revenue', 'Average Order Value'];
+    const headers = ['Branch', 'Sales', 'Enquiries', 'Bookings', 'Revenue'];
     const csvContent = [
       headers.join(','),
-      ...branchData.map(b => [b.fullName, b.sales, b.revenue, b.aov].join(','))
+      ...branchData.map(b => [b.fullName, b.sales, b.enquiries, b.bookings, b.revenue].join(','))
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `global-dashboard-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `main-dashboard-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
-
+  const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6'];
   const stats = getTotalStats();
+
+  const KPICard = ({ title, value, icon: Icon, color, bgColor }) => (
+    <Card className={`p-4 rounded-xl border-0 shadow-sm ${bgColor}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-medium text-gray-500 mb-1">{title}</p>
+          <h3 className="text-xl font-bold text-gray-900">{value}</h3>
+        </div>
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon className="w-5 h-5 text-white" />
+        </div>
+      </div>
+    </Card>
+  );
 
   if (loading && Object.keys(allBranchData).length === 0) {
     return (
-      <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen">
+      <div className="flex bg-gray-50 min-h-screen">
         <Sidebar user={user} onLogout={onLogout} />
         <div className="flex-1 p-8 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading all branch data...</p>
+            <p className="text-gray-600">Loading all branch data...</p>
           </div>
         </div>
       </div>
@@ -221,145 +291,142 @@ const GlobalDashboard = ({ user, onLogout }) => {
   }
 
   return (
-    <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="global-dashboard">
+    <div className="flex bg-gray-50 min-h-screen" data-testid="global-dashboard">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
-        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <Building2 className="w-7 h-7 text-indigo-600" />
+              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <Building2 className="w-6 h-6 text-indigo-600" />
                 Main Dashboard
               </h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                All branches performance overview • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
-                {loading && <span className="ml-2 text-indigo-600">Syncing...</span>}
-              </p>
+              <p className="text-sm text-gray-500">All branches • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}</p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Date Filter */}
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <Input
-                  type="date" style={{ color: "#1f2937" }}
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
-                  placeholder="Start"
-                />
-                <span className="text-gray-400">-</span>
-                <Input
-                  type="date" style={{ color: "#1f2937" }}
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
-                  placeholder="End"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                className="gap-2 text-gray-600 dark:text-gray-300"
-                onClick={fetchAllBranchData}
-                disabled={loading}
-              >
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={fetchAllBranchData} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
               </Button>
-              <Button 
-                variant="outline" 
-                className="gap-2 text-gray-600 dark:text-gray-300"
-                onClick={exportToCSV}
-              >
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
                 <Download className="w-4 h-4" />
-                CSV
               </Button>
-              <Button 
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
-                onClick={exportToPDF}
-              >
+              <Button size="sm" className="bg-indigo-600" onClick={exportToPDF}>
                 <FileText className="w-4 h-4" />
-                PDF
               </Button>
+              <div className="flex items-center gap-1 ml-2">
+                <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-500 hover:text-indigo-600" style={{ cursor: 'pointer' }}>
+                  {autoSyncEnabled ? 'Auto' : 'Manual'}
+                </button>
+              </div>
             </div>
-          </div>
-          {/* Auto-sync indicator */}
-          <div className="mt-3 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Auto-sync {autoSyncEnabled ? 'enabled' : 'disabled'} (every 30s)
-            </span>
-            <button 
-              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
-              className="text-xs text-indigo-600 hover:underline"
-            >
-              {autoSyncEnabled ? 'Disable' : 'Enable'}
-            </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Global KPIs */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card className="p-5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl border-0 text-white">
-              <DollarSign className="w-8 h-8 mb-3 opacity-80" />
-              <h3 className="text-3xl font-bold">{formatCurrency(stats.totalRevenue)}</h3>
-              <p className="text-indigo-100 text-sm">Total Revenue (All Branches)</p>
-            </Card>
-            <Card className="p-5 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl border-0 text-white">
-              <Target className="w-8 h-8 mb-3 opacity-80" />
-              <h3 className="text-3xl font-bold">{formatNumber(stats.totalSold)}</h3>
-              <p className="text-purple-100 text-sm">Total Units Sold</p>
-            </Card>
-            <Card className="p-5 bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl border-0 text-white">
-              <Activity className="w-8 h-8 mb-3 opacity-80" />
-              <h3 className="text-3xl font-bold">{formatCurrency(stats.avgOrderValue)}</h3>
-              <p className="text-pink-100 text-sm">Average Order Value</p>
-            </Card>
-            <Card className="p-5 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl border-0 text-white">
-              <Building2 className="w-8 h-8 mb-3 opacity-80" />
-              <h3 className="text-3xl font-bold">{stats.totalBranches}</h3>
-              <p className="text-green-100 text-sm">Active Branches</p>
-            </Card>
+        <div className="p-6 space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <KPICard title="Total Sales" value={formatNumber(stats.totalSold)} icon={ShoppingCart} color="bg-indigo-500" bgColor="bg-white" />
+            <KPICard title="Total Enquiries" value={formatNumber(stats.totalEnquiries)} icon={Users} color="bg-blue-500" bgColor="bg-white" />
+            <KPICard title="Total Bookings" value={formatNumber(stats.totalBookings)} icon={CheckCircle} color="bg-green-500" bgColor="bg-white" />
+            <KPICard title="Conversion %" value={`${stats.conversionRate}%`} icon={Percent} color="bg-purple-500" bgColor="bg-white" />
+            <KPICard title="DC Collected" value={formatCurrency(stats.totalDC)} icon={DollarSign} color="bg-orange-500" bgColor="bg-white" />
+            <KPICard title="Discount" value={formatCurrency(stats.totalDiscount)} icon={Target} color="bg-pink-500" bgColor="bg-white" />
           </div>
 
-          {/* Branch Comparison Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Revenue by Branch */}
-            <Card className="p-5 bg-white dark:bg-slate-800 rounded-2xl border-0 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Revenue by Branch</h3>
-              <ResponsiveContainer width="100%" height={300}>
+          {/* Sales Trend by Branch - Line Chart */}
+          <Card className="p-5 bg-white rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Sales Trend by Branch</h3>
+                <p className="text-xs text-gray-500">Performance comparison over time</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={trendPeriod} onValueChange={setTrendPeriod}>
+                  <SelectTrigger className="w-28 h-8 text-sm bg-white border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                    <SelectItem value="daily" className="cursor-pointer hover:bg-gray-100">Daily</SelectItem>
+                    <SelectItem value="weekly" className="cursor-pointer hover:bg-gray-100">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="cursor-pointer hover:bg-gray-100">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-1">
+                  <Input
+                    type="date"
+                    value={chartStartDate}
+                    onChange={(e) => setChartStartDate(e.target.value)}
+                    className="w-32 h-8 text-xs bg-white border-gray-200"
+                    style={{ color: '#1f2937' }}
+                  />
+                  <span className="text-gray-400 text-xs">to</span>
+                  <Input
+                    type="date"
+                    value={chartEndDate}
+                    onChange={(e) => setChartEndDate(e.target.value)}
+                    className="w-32 h-8 text-xs bg-white border-gray-200"
+                    style={{ color: '#1f2937' }}
+                  />
+                </div>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={salesTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                {branches.map((branch, index) => (
+                  <Line
+                    key={branch}
+                    type="monotone"
+                    dataKey={branch}
+                    name={branch.substring(0, 8)}
+                    stroke={COLORS[index % COLORS.length]}
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: COLORS[index % COLORS.length] }}
+                    activeDot={{ r: 5 }}
+                    connectNulls
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
+
+          {/* Branch Comparison + Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Sales by Branch Bar Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Sales by Branch</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={getBranchComparisonData()} layout="vertical">
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={50} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(value) => [value, 'Sales']} cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }} />
+                  <Bar dataKey="sales" radius={[0, 4, 4, 0]} style={{ cursor: 'pointer' }}>
+                    {getBranchComparisonData().map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+
+            {/* Revenue by Branch Bar Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Revenue by Branch</h3>
+              <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={getBranchComparisonData()}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="name" stroke="#9ca3af" tick={{ fontSize: 11 }} />
-                  <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${v/100000}L`} />
-                  <Tooltip 
-                    formatter={(value, name) => [formatCurrency(value), 'Revenue']}
-                    labelFormatter={(label, payload) => payload[0]?.payload?.fullName || label}
-                  />
-                  <Bar dataKey="revenue" radius={[6, 6, 0, 0]}>
-                    {getBranchComparisonData().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-
-            {/* Sales by Branch */}
-            <Card className="p-5 bg-white dark:bg-slate-800 rounded-2xl border-0 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Units Sold by Branch</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={getBranchComparisonData()} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
-                  <XAxis type="number" stroke="#9ca3af" tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" stroke="#9ca3af" tick={{ fontSize: 11 }} width={70} />
-                  <Tooltip 
-                    formatter={(value) => [value, 'Units Sold']}
-                    labelFormatter={(label, payload) => payload[0]?.payload?.fullName || label}
-                  />
-                  <Bar dataKey="sales" radius={[0, 6, 6, 0]}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${v/100000}L`} />
+                  <Tooltip formatter={(value) => [formatCurrency(value), 'Revenue']} cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }} />
+                  <Bar dataKey="revenue" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }}>
                     {getBranchComparisonData().map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
@@ -369,50 +436,65 @@ const GlobalDashboard = ({ user, onLogout }) => {
             </Card>
           </div>
 
-          {/* Bottom Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Category Distribution */}
-            <Card className="p-5 bg-white dark:bg-slate-800 rounded-2xl border-0 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Category Distribution (All Branches)</h3>
-              <ResponsiveContainer width="100%" height={250}>
+          {/* Pie Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Category Pie Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Sales by Category</h3>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={getCategoryDistribution()}
                     cx="50%"
                     cy="50%"
-                    outerRadius={90}
+                    outerRadius={70}
                     dataKey="value"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                     labelLine={false}
                   >
                     {getCategoryDistribution().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cursor="pointer" />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip formatter={(value, name) => [value, name]} />
                 </PieChart>
               </ResponsiveContainer>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {getCategoryDistribution().map((entry, index) => (
+                  <div key={entry.name} className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                    <span className="text-xs text-gray-600">{entry.name}</span>
+                  </div>
+                ))}
+              </div>
             </Card>
 
-            {/* Top Executives */}
-            <Card className="p-5 bg-white dark:bg-slate-800 rounded-2xl border-0 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Top Executives (All Branches)</h3>
-              <div className="space-y-3 max-h-[250px] overflow-y-auto">
-                {getTopExecutivesAcrossBranches().map((exec, index) => (
-                  <div key={index} className="flex items-center gap-3">
-                    <div 
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                    >
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{exec.name}</span>
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{exec.sales}</span>
-                      </div>
-                      <span className="text-xs text-gray-500">{exec.branch}</span>
-                    </div>
+            {/* Payment Mode Pie Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Payment Mode</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={getPaymentDistribution()}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={70}
+                    dataKey="value"
+                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {getPaymentDistribution().map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.name === 'Cash' ? '#10b981' : '#8b5cf6'} style={{ cursor: 'pointer' }} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [value, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 justify-center mt-2">
+                {getPaymentDistribution().map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.name === 'Cash' ? '#10b981' : '#8b5cf6' }}></div>
+                    <span className="text-xs text-gray-600">{entry.name}: {entry.value}</span>
                   </div>
                 ))}
               </div>
