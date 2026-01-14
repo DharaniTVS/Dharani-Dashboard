@@ -34,10 +34,11 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 - Display technician productivity metrics
 - Date-based report viewing
 
-### 4. Inventory Module ✅
-- Read Stock sheet (gid=1) from each branch's Google Sheet
-- Display inventory data in table format
+### 4. Inventory Module ✅ (FIXED Jan 14, 2026)
+- Read Stock sheet with branch-specific GIDs from each branch's Google Sheet
+- Display inventory data in table format with all columns
 - Search functionality
+- Columns: MODEL, Colour, Frame No, Engine No, Quantity, TVS Invoice Date, Aging Stock (Days), Dealer Invoice Status, PDI Status
 
 ### 5. Settings Module ✅
 - **AI Configuration**: API key input, provider selection (Gemini/OpenAI/Anthropic), model selection
