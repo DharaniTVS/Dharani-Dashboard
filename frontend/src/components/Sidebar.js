@@ -187,6 +187,8 @@ const Sidebar = ({ user, onLogout }) => {
             <span className="text-sm">Inventory</span>
           </div>
         </Link>
+          </>
+        )}
 
         <div className="pt-6 mt-6 border-t border-gray-200">
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
