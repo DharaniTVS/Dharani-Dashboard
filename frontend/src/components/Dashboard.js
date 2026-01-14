@@ -116,6 +116,81 @@ const Dashboard = ({ user, onLogout }) => {
     setWeeklyTrend(mockTrend);
   };
 
+  // Drill-down handlers
+  const handleExecutiveDrillDown = (exec) => {
+    const data = salesData.filter(record => record['Executive Name'] === exec);
+    setDrillDownData(data);
+    setDrillDownTitle(`Sales by ${exec}`);
+  };
+
+  const handleModelDrillDown = (model) => {
+    const data = salesData.filter(record => (record['Vehicle Model'] || '').includes(model));
+    setDrillDownData(data);
+    setDrillDownTitle(`Sales of ${model}`);
+  };
+
+  const handleCategoryDrillDown = (category) => {
+    const data = salesData.filter(record => record['Category'] === category);
+    setDrillDownData(data);
+    setDrillDownTitle(`${category} Sales`);
+  };
+
+  const closeDrillDown = () => {
+    setDrillDownData(null);
+    setDrillDownTitle('');
+  };
+
+  const formatCurrency = (value) => {
+    if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)} Cr`;
+    if (value >= 100000) return `₹${(value / 100000).toFixed(2)} L`;
+    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
+    return `₹${value}`;
+  };
+
+  const exportDrillDownToCSV = () => {
+    if (!drillDownData) return;
+    const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name', 'Vehicle Cost'];
+    const csvContent = [
+      headers.join(','),
+      ...drillDownData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${drillDownTitle.toLowerCase().replace(/\s/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  const exportDrillDownToPDF = () => {
+    if (!drillDownData) return;
+    const doc = new jsPDF('landscape');
+    doc.setFontSize(18);
+    doc.setTextColor(99, 102, 241);
+    doc.text(drillDownTitle, 20, 20);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Branch: ${selectedBranch} | Records: ${drillDownData.length}`, 20, 28);
+
+    doc.autoTable({
+      startY: 35,
+      head: [['Date', 'Customer', 'Phone', 'Model', 'Category', 'Cost']],
+      body: drillDownData.map(row => [
+        row['Sales Date'] || '-',
+        (row['Customer Name'] || '-').substring(0, 20),
+        row['Mobile No'] || '-',
+        (row['Vehicle Model'] || '-').substring(0, 15),
+        row['Category'] || '-',
+        row['Vehicle Cost (₹)'] || Object.entries(row).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [99, 102, 241] }
+    });
+
+    doc.save(`${drillDownTitle.toLowerCase().replace(/\s/g, '-')}.pdf`);
+  };
+
   const getExecutivePerformance = () => {
     const executiveMap = {};
     salesData.forEach(record => {
