@@ -159,7 +159,7 @@ const Service = ({ user, onLogout }) => {
 
     const headers = ['SI No', 'Technician', 'Free', 'Paid', 'PSF', 'Major', 'Minor', 'Accident', 'PDI', 'Veh Tot', 'Parts Val'];
     
-    doc.autoTable({
+    autoTable(doc, {
       startY: 40,
       head: [headers],
       body: filteredData.map(row => headers.map(h => row[h] || '-')),
