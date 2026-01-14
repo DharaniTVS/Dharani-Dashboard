@@ -120,22 +120,24 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 
 ## Prioritized Backlog
 
-### P0 (Critical)
-- ✅ Multi-branch data support
+### P0 (Critical) ✅ COMPLETED
+- ✅ Multi-branch data support (all 5 branches with correct GIDs)
 - ✅ Dashboard with modern charts
 - ✅ Date filters on Enquiries/Bookings
 - ✅ AI Chat integration
 - ✅ Settings for AI API key
+- ✅ Inventory/Stock sync with branch-specific GIDs (Fixed Jan 14, 2026)
 
 ### P1 (High Priority)
-- [ ] PDF Export functionality
-- [ ] Real-time sync (polling mechanism)
-- [ ] Service module refinement (better PDF parsing)
+- [ ] Service PDF upload - needs end-to-end testing
+- [x] Chart drill-down - click chart to see detailed data (UI exists, logic needed)
+- [ ] PDF Export to Sales pages (Enquiries, Bookings, Sold)
 
 ### P2 (Medium Priority)
 - [ ] Role-Based Access Control (RBAC)
 - [ ] WhatsApp/Twilio integration for staff prompts
-- [ ] Service appointment booking
+- [ ] Dark mode improvements (some edge cases)
+- [ ] AI Assistant enhancements (pass real data context)
 
 ### P3 (Low Priority)
 - [ ] Mobile-responsive optimization
@@ -157,9 +159,10 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 - `DELETE /api/settings/remove-email` - Remove from whitelist
 
 ### Data
-- `GET /api/sheets/sales-data` - Get sales data (with filters)
-- `GET /api/sheets/stock-data` - Get inventory data
-- `GET /api/sheets/service-data` - Get service data
+- `GET /api/sheets/sales-data` - Get sales/sold data (with filters)
+- `GET /api/sheets/enquiry-data` - Get enquiry data (NEW)
+- `GET /api/sheets/bookings-data` - Get bookings data (NEW)
+- `GET /api/sheets/stock-data` - Get inventory data (FIXED - branch-specific GIDs)
 - `GET /api/sheets/branches` - Get list of branches
 - `GET /api/sheets/executives` - Get executives list
 
