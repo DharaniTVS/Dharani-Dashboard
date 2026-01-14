@@ -5,7 +5,7 @@ import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileDown, X, Percent } from 'lucide-react';
+import { Users, ShoppingCart, CheckCircle, DollarSign, Target, RefreshCw, Calendar, Download, FileDown, X, Percent } from 'lucide-react';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
@@ -30,8 +30,8 @@ const Dashboard = ({ user, onLogout }) => {
   });
   const [salesTrendData, setSalesTrendData] = useState([]);
   const [trendPeriod, setTrendPeriod] = useState('daily');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [chartStartDate, setChartStartDate] = useState('');
+  const [chartEndDate, setChartEndDate] = useState('');
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
   const [lastSync, setLastSync] = useState(null);
   
@@ -76,7 +76,6 @@ const Dashboard = ({ user, onLogout }) => {
     }
   }, [selectedBranch, fetchData]);
 
-  // Auto-sync every 30 seconds
   useEffect(() => {
     if (!autoSyncEnabled) return;
     const interval = setInterval(() => {
@@ -86,11 +85,9 @@ const Dashboard = ({ user, onLogout }) => {
   }, [autoSyncEnabled, fetchData]);
 
   useEffect(() => {
-    if (salesData.length > 0) {
-      calculateStats();
-      calculateSalesTrend();
-    }
-  }, [salesData, enquiryData, bookingsData, trendPeriod, startDate, endDate]);
+    calculateStats();
+    calculateSalesTrend();
+  }, [salesData, enquiryData, bookingsData, trendPeriod, chartStartDate, chartEndDate]);
 
   const calculateStats = () => {
     const totalSales = salesData.length;
@@ -98,69 +95,70 @@ const Dashboard = ({ user, onLogout }) => {
     const totalBookings = bookingsData.length;
     const conversionRate = totalEnquiries > 0 ? ((totalSales / totalEnquiries) * 100).toFixed(1) : 0;
     
-    // Calculate Total DC (Document Charges) Collected
     const totalDCCollected = salesData.reduce((sum, record) => {
       const dc = parseFloat(String(record['Document Charges'] || '0').replace(/[^0-9.]/g, ''));
       return sum + (isNaN(dc) ? 0 : dc);
     }, 0);
 
-    // Calculate Total Discount Operated
     const totalDiscountOperated = salesData.reduce((sum, record) => {
-      const discountField = record['Discount Operated (₹)'] || record['Discount Operated (â₹)'] || 
+      const discountField = record['Discount Operated (₹)'] || record['Discount Operated'] || 
                            Object.entries(record).find(([key]) => key.toLowerCase().includes('discount'))?.[1] || '0';
       const discount = parseFloat(String(discountField).replace(/[^0-9.]/g, ''));
       return sum + (isNaN(discount) ? 0 : discount);
     }, 0);
 
-    setStats({
-      totalSales,
-      totalEnquiries,
-      totalBookings,
-      conversionRate,
-      totalDCCollected,
-      totalDiscountOperated
-    });
+    setStats({ totalSales, totalEnquiries, totalBookings, conversionRate, totalDCCollected, totalDiscountOperated });
   };
 
   const calculateSalesTrend = () => {
-    // Filter data by date range if set
     let filteredSales = [...salesData];
-    if (startDate && endDate) {
+    
+    // Apply date filter
+    if (chartStartDate && chartEndDate) {
       filteredSales = salesData.filter(record => {
         const saleDate = record['Sales Date'];
         if (!saleDate) return false;
-        return saleDate >= startDate && saleDate <= endDate;
+        return saleDate >= chartStartDate && saleDate <= chartEndDate;
       });
     }
 
-    // Group by date and executive
-    const executiveMap = {};
+    // Group by date
     const dateMap = {};
+    const executives = new Set();
 
     filteredSales.forEach(record => {
       const exec = record['Executive Name'] || 'Unknown';
-      const dateStr = record['Sales Date'] || '';
+      executives.add(exec);
       
-      if (!executiveMap[exec]) executiveMap[exec] = true;
-      
+      let dateStr = record['Sales Date'] || '';
       let groupKey = dateStr;
-      if (trendPeriod === 'weekly') {
-        // Group by week
+      
+      if (trendPeriod === 'weekly' && dateStr) {
+        // Get week number
         const date = new Date(dateStr);
-        const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
-        groupKey = weekStart.toISOString().split('T')[0];
-      } else if (trendPeriod === 'monthly') {
-        // Group by month
-        groupKey = dateStr.substring(0, 7); // YYYY-MM
+        const startOfYear = new Date(date.getFullYear(), 0, 1);
+        const weekNum = Math.ceil((((date - startOfYear) / 86400000) + startOfYear.getDay() + 1) / 7);
+        groupKey = `W${weekNum}`;
+      } else if (trendPeriod === 'monthly' && dateStr) {
+        groupKey = dateStr.substring(0, 7);
       }
 
-      if (!dateMap[groupKey]) {
-        dateMap[groupKey] = { date: groupKey };
+      if (groupKey) {
+        if (!dateMap[groupKey]) {
+          dateMap[groupKey] = { date: groupKey };
+        }
+        dateMap[groupKey][exec] = (dateMap[groupKey][exec] || 0) + 1;
       }
-      dateMap[groupKey][exec] = (dateMap[groupKey][exec] || 0) + 1;
     });
 
-    const trendData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+    // Sort and limit data points for cleaner chart
+    let trendData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+    
+    // Limit to last 15 data points for readability
+    if (trendData.length > 15) {
+      trendData = trendData.slice(-15);
+    }
+
     setSalesTrendData(trendData);
   };
 
@@ -169,10 +167,9 @@ const Dashboard = ({ user, onLogout }) => {
     salesData.forEach(record => {
       if (record['Executive Name']) execs.add(record['Executive Name']);
     });
-    return Array.from(execs);
+    return Array.from(execs).slice(0, 5); // Limit to 5 executives for cleaner chart
   };
 
-  // Drill-down handlers
   const handleExecutiveDrillDown = (exec) => {
     const data = salesData.filter(record => record['Executive Name'] === exec);
     setDrillDownData(data);
@@ -190,6 +187,8 @@ const Dashboard = ({ user, onLogout }) => {
     if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
     return `₹${value}`;
   };
+
+  const formatNumber = (value) => new Intl.NumberFormat('en-IN').format(value);
 
   const exportDrillDownToCSV = () => {
     if (!drillDownData) return;
@@ -213,9 +212,6 @@ const Dashboard = ({ user, onLogout }) => {
     doc.setFontSize(18);
     doc.setTextColor(99, 102, 241);
     doc.text(drillDownTitle, 20, 20);
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Branch: ${selectedBranch} | Records: ${drillDownData.length}`, 20, 28);
 
     autoTable(doc, {
       startY: 35,
@@ -226,7 +222,7 @@ const Dashboard = ({ user, onLogout }) => {
         row['Mobile No'] || '-',
         (row['Vehicle Model'] || '-').substring(0, 15),
         row['Category'] || '-',
-        row['Vehicle Cost (₹)'] || Object.entries(row).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'
+        row['Vehicle Cost (₹)'] || '-'
       ]),
       theme: 'striped',
       headStyles: { fillColor: [99, 102, 241] }
@@ -240,14 +236,10 @@ const Dashboard = ({ user, onLogout }) => {
     salesData.forEach(record => {
       const exec = record['Executive Name'] || 'Unknown';
       if (!executiveMap[exec]) {
-        executiveMap[exec] = { name: exec, sales: 0, revenue: 0 };
+        executiveMap[exec] = { name: exec, sales: 0 };
       }
       executiveMap[exec].sales += 1;
-      const costField = record['Vehicle Cost (₹)'] || Object.entries(record).find(([key]) => key.toLowerCase().includes('vehicle cost'))?.[1] || '0';
-      const cost = parseFloat(String(costField).replace(/[^0-9.]/g, ''));
-      executiveMap[exec].revenue += isNaN(cost) ? 0 : cost;
     });
-
     return Object.values(executiveMap).sort((a, b) => b.sales - a.sales).slice(0, 6);
   };
 
@@ -257,7 +249,6 @@ const Dashboard = ({ user, onLogout }) => {
       const category = record['Category'] || 'Other';
       categoryMap[category] = (categoryMap[category] || 0) + 1;
     });
-
     return Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
   };
 
@@ -267,33 +258,26 @@ const Dashboard = ({ user, onLogout }) => {
       const payment = record['Cash/HP'] || 'Unknown';
       paymentMap[payment] = (paymentMap[payment] || 0) + 1;
     });
-
     return Object.entries(paymentMap).map(([name, value]) => ({ name, value }));
   };
 
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
-  const EXEC_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
+  const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
 
-  const formatNumber = (value) => {
-    return new Intl.NumberFormat('en-IN').format(value);
-  };
-
-  // KPI Card Component
   const KPICard = ({ title, value, icon: Icon, color, bgColor }) => (
-    <Card className={`p-5 rounded-xl border-0 shadow-sm ${bgColor}`} data-testid={`kpi-${title.toLowerCase().replace(/\s/g, '-')}`}>
+    <Card className={`p-4 rounded-xl border-0 shadow-sm ${bgColor}`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
-          <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+          <p className="text-xs font-medium text-gray-500 mb-1">{title}</p>
+          <h3 className="text-xl font-bold text-gray-900">{value}</h3>
         </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-6 h-6 text-white" />
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+          <Icon className="w-5 h-5 text-white" />
         </div>
       </div>
     </Card>
   );
 
-  if (loading) {
+  if (loading && salesData.length === 0) {
     return (
       <div className="flex bg-gray-50 min-h-screen">
         <Sidebar user={user} onLogout={onLogout} />
@@ -313,164 +297,106 @@ const Dashboard = ({ user, onLogout }) => {
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-8 py-5">
+        <div className="bg-white border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sales Dashboard</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                <span className="font-medium text-indigo-600">{selectedBranch}</span> branch • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
+              <h1 className="text-xl font-bold text-gray-900">Sales Dashboard</h1>
+              <p className="text-sm text-gray-500">
+                <span className="font-medium text-indigo-600">{selectedBranch}</span> • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button 
-                variant="outline" 
-                className="gap-2 text-gray-600"
-                onClick={fetchData}
-                disabled={loading}
-              >
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={fetchData} disabled={loading}>
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
               </Button>
+              <div className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-500 hover:text-indigo-600">
+                  {autoSyncEnabled ? 'Auto' : 'Manual'}
+                </button>
+              </div>
             </div>
-          </div>
-          {/* Auto-sync indicator */}
-          <div className="mt-3 flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-            <span className="text-xs text-gray-500">
-              Auto-sync {autoSyncEnabled ? 'enabled' : 'disabled'} (every 30s)
-            </span>
-            <button 
-              onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
-              className="text-xs text-indigo-600 hover:underline cursor-pointer"
-            >
-              {autoSyncEnabled ? 'Disable' : 'Enable'}
-            </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* KPI Cards - 6 cards in a row */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            <KPICard
-              title="Total Sales"
-              value={formatNumber(stats.totalSales)}
-              icon={ShoppingCart}
-              color="bg-indigo-500"
-              bgColor="bg-indigo-50"
-            />
-            <KPICard
-              title="Total Enquiries"
-              value={formatNumber(stats.totalEnquiries)}
-              icon={Users}
-              color="bg-blue-500"
-              bgColor="bg-blue-50"
-            />
-            <KPICard
-              title="Total Bookings"
-              value={formatNumber(stats.totalBookings)}
-              icon={CheckCircle}
-              color="bg-green-500"
-              bgColor="bg-green-50"
-            />
-            <KPICard
-              title="Conversion Ratio"
-              value={`${stats.conversionRate}%`}
-              icon={Percent}
-              color="bg-purple-500"
-              bgColor="bg-purple-50"
-            />
-            <KPICard
-              title="Total DC Collected"
-              value={formatCurrency(stats.totalDCCollected)}
-              icon={DollarSign}
-              color="bg-orange-500"
-              bgColor="bg-orange-50"
-            />
-            <KPICard
-              title="Total Discount"
-              value={formatCurrency(stats.totalDiscountOperated)}
-              icon={Target}
-              color="bg-pink-500"
-              bgColor="bg-pink-50"
-            />
+        <div className="p-6 space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <KPICard title="Total Sales" value={formatNumber(stats.totalSales)} icon={ShoppingCart} color="bg-indigo-500" bgColor="bg-white" />
+            <KPICard title="Total Enquiries" value={formatNumber(stats.totalEnquiries)} icon={Users} color="bg-blue-500" bgColor="bg-white" />
+            <KPICard title="Total Bookings" value={formatNumber(stats.totalBookings)} icon={CheckCircle} color="bg-green-500" bgColor="bg-white" />
+            <KPICard title="Conversion %" value={`${stats.conversionRate}%`} icon={Percent} color="bg-purple-500" bgColor="bg-white" />
+            <KPICard title="DC Collected" value={formatCurrency(stats.totalDCCollected)} icon={DollarSign} color="bg-orange-500" bgColor="bg-white" />
+            <KPICard title="Discount" value={formatCurrency(stats.totalDiscountOperated)} icon={Target} color="bg-pink-500" bgColor="bg-white" />
           </div>
 
-          {/* Sales Trend Chart - Line Chart with Executive-wise breakdown */}
-          <Card className="p-5 bg-white rounded-xl border-0 shadow-sm mb-6">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          {/* Sales Trend Line Chart */}
+          <Card className="p-5 bg-white rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Sales Trend by Executive</h3>
-                <p className="text-xs text-gray-500">Performance trend over time</p>
+                <h3 className="text-base font-semibold text-gray-900">Sales Trend by Executive</h3>
+                <p className="text-xs text-gray-500">Performance over time</p>
               </div>
-              <div className="flex items-center gap-3">
-                {/* Period Selector */}
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={trendPeriod} onValueChange={setTrendPeriod}>
-                  <SelectTrigger className="w-32 bg-white text-gray-900 border-gray-300">
+                  <SelectTrigger className="w-28 h-8 text-sm bg-white border-gray-200">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-white z-[100]">
-                    <SelectItem value="daily" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Daily</SelectItem>
-                    <SelectItem value="weekly" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Weekly</SelectItem>
-                    <SelectItem value="monthly" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Monthly</SelectItem>
+                  <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                    <SelectItem value="daily" className="cursor-pointer hover:bg-gray-100">Daily</SelectItem>
+                    <SelectItem value="weekly" className="cursor-pointer hover:bg-gray-100">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="cursor-pointer hover:bg-gray-100">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
-                {/* Date Range */}
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-gray-500" />
+                <div className="flex items-center gap-1">
                   <Input
                     type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-36 h-9 text-sm bg-white text-gray-900 border-gray-300"
+                    value={chartStartDate}
+                    onChange={(e) => setChartStartDate(e.target.value)}
+                    className="w-32 h-8 text-xs bg-white border-gray-200"
                     style={{ color: '#1f2937' }}
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-gray-400 text-xs">to</span>
                   <Input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-36 h-9 text-sm bg-white text-gray-900 border-gray-300"
+                    value={chartEndDate}
+                    onChange={(e) => setChartEndDate(e.target.value)}
+                    className="w-32 h-8 text-xs bg-white border-gray-200"
                     style={{ color: '#1f2937' }}
                   />
                 </div>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={salesTrendData}>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={salesTrendData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis 
                   dataKey="date" 
-                  stroke="#9ca3af" 
-                  tick={{ fontSize: 11 }} 
+                  tick={{ fontSize: 10, fill: '#6b7280' }} 
                   axisLine={false} 
                   tickLine={false}
-                  tickFormatter={(value) => {
-                    if (trendPeriod === 'monthly') return value;
-                    const date = new Date(value);
-                    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-                  }}
+                  interval="preserveStartEnd"
                 />
                 <YAxis 
-                  stroke="#9ca3af" 
-                  tick={{ fontSize: 11 }} 
+                  tick={{ fontSize: 10, fill: '#6b7280' }} 
                   axisLine={false} 
                   tickLine={false}
-                  label={{ value: 'No. of Sales', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280' } }}
+                  allowDecimals={false}
                 />
                 <Tooltip 
-                  contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', fontSize: '12px' }}
                 />
-                <Legend />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                 {getExecutives().map((exec, index) => (
                   <Line
                     key={exec}
                     type="monotone"
                     dataKey={exec}
-                    name={exec}
-                    stroke={EXEC_COLORS[index % EXEC_COLORS.length]}
+                    name={exec.length > 10 ? exec.substring(0, 10) + '...' : exec}
+                    stroke={COLORS[index % COLORS.length]}
                     strokeWidth={2}
-                    dot={{ fill: EXEC_COLORS[index % EXEC_COLORS.length], r: 4 }}
-                    activeDot={{ r: 6, cursor: 'pointer' }}
+                    dot={{ r: 3, fill: COLORS[index % COLORS.length] }}
+                    activeDot={{ r: 5 }}
                     connectNulls
                   />
                 ))}
@@ -478,27 +404,24 @@ const Dashboard = ({ user, onLogout }) => {
             </ResponsiveContainer>
           </Card>
 
-          {/* Bottom Row - Pie Charts and Executive Performance */}
+          {/* Bottom Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Sales by Category - Pie Chart */}
-            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Sales by Category</h3>
-                <p className="text-xs text-gray-500">Distribution by vehicle type</p>
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
+            {/* Category Pie Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Sales by Category</h3>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={getCategoryDistribution()}
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    outerRadius={70}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     labelLine={false}
                   >
                     {getCategoryDistribution().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cursor="pointer" />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} style={{ cursor: 'pointer' }} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value, name) => [value, name]} />
@@ -506,46 +429,43 @@ const Dashboard = ({ user, onLogout }) => {
               </ResponsiveContainer>
               <div className="flex flex-wrap gap-2 justify-center mt-2">
                 {getCategoryDistribution().map((entry, index) => (
-                  <div key={entry.name} className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                  <div key={entry.name} className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
                     <span className="text-xs text-gray-600">{entry.name}</span>
                   </div>
                 ))}
               </div>
             </Card>
 
-            {/* Payment Mode - Pie Chart */}
-            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Payment Mode</h3>
-                <p className="text-xs text-gray-500">Cash vs Finance distribution</p>
-              </div>
-              <ResponsiveContainer width="100%" height={220}>
+            {/* Payment Mode Pie Chart */}
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Payment Mode</h3>
+              <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie
                     data={getPaymentDistribution()}
                     cx="50%"
                     cy="50%"
-                    outerRadius={80}
+                    outerRadius={70}
                     dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                     labelLine={false}
                   >
                     {getPaymentDistribution().map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={entry.name === 'Cash' ? '#10b981' : '#8b5cf6'} 
-                        cursor="pointer"
+                        style={{ cursor: 'pointer' }}
                       />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value, name) => [value, name]} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-3 justify-center mt-2">
-                {getPaymentDistribution().map((entry, index) => (
-                  <div key={entry.name} className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.name === 'Cash' ? '#10b981' : '#8b5cf6' }}></div>
+              <div className="flex gap-4 justify-center mt-2">
+                {getPaymentDistribution().map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.name === 'Cash' ? '#10b981' : '#8b5cf6' }}></div>
                     <span className="text-xs text-gray-600">{entry.name}: {entry.value}</span>
                   </div>
                 ))}
@@ -553,35 +473,27 @@ const Dashboard = ({ user, onLogout }) => {
             </Card>
 
             {/* Executive Performance */}
-            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Executive Performance</h3>
-                <p className="text-xs text-gray-500">Top performers by sales count</p>
-              </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={getExecutivePerformance()} layout="vertical" barCategoryGap="20%">
+            <Card className="p-4 bg-white rounded-xl shadow-sm">
+              <h3 className="text-base font-semibold text-gray-900 mb-3">Top Executives</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={getExecutivePerformance()} layout="vertical" margin={{ left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
-                  <XAxis type="number" stroke="#9ca3af" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis 
                     dataKey="name" 
                     type="category" 
-                    stroke="#9ca3af" 
                     tick={{ fontSize: 10 }} 
-                    width={70} 
+                    width={60} 
                     axisLine={false} 
                     tickLine={false}
+                    tickFormatter={(value) => value.length > 8 ? value.substring(0, 8) + '..' : value}
                   />
-                  <Tooltip 
-                    contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', cursor: 'default' }}
-                    formatter={(value) => [value, 'Sales']}
-                    cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
-                  />
+                  <Tooltip formatter={(value) => [value, 'Sales']} cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }} />
                   <Bar 
                     dataKey="sales" 
                     fill="#6366f1" 
-                    radius={[0, 6, 6, 0]} 
-                    name="Sales"
-                    cursor="pointer"
+                    radius={[0, 4, 4, 0]}
+                    style={{ cursor: 'pointer' }}
                     onClick={(data) => handleExecutiveDrillDown(data.name)}
                   />
                 </BarChart>
@@ -593,47 +505,37 @@ const Dashboard = ({ user, onLogout }) => {
 
       {/* Drill-down Modal */}
       {drillDownData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="bg-white rounded-2xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">{drillDownTitle}</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={closeDrillDown}>
+          <Card className="bg-white rounded-xl max-w-4xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">{drillDownTitle}</h3>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={exportDrillDownToCSV}
-                >
+                <Button variant="outline" size="sm" onClick={exportDrillDownToCSV}>
                   <Download className="w-4 h-4 mr-1" /> CSV
                 </Button>
-                <Button 
-                  size="sm"
-                  onClick={exportDrillDownToPDF}
-                  className="bg-indigo-600"
-                >
+                <Button size="sm" onClick={exportDrillDownToPDF} className="bg-indigo-600">
                   <FileDown className="w-4 h-4 mr-1" /> PDF
                 </Button>
-                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 rounded cursor-pointer">
+                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 rounded" style={{ cursor: 'pointer' }}>
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
             </div>
-            <div className="p-4 text-sm text-gray-600">
-              {drillDownData.length} records found
-            </div>
+            <div className="p-3 text-sm text-gray-500">{drillDownData.length} records</div>
             <div className="overflow-auto max-h-[60vh]">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').map((col, idx) => (
-                      <th key={idx} className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-4 whitespace-nowrap">{col}</th>
+                    {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').slice(0, 8).map((col, idx) => (
+                      <th key={idx} className="text-left text-xs font-medium text-gray-500 uppercase py-2 px-3">{col}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y">
                   {drillDownData.map((record, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').map((col, colIdx) => (
-                        <td key={colIdx} className="py-3 px-4 text-sm text-gray-700 whitespace-nowrap">{record[col] || '-'}</td>
+                      {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').slice(0, 8).map((col, colIdx) => (
+                        <td key={colIdx} className="py-2 px-3 text-gray-700">{record[col] || '-'}</td>
                       ))}
                     </tr>
                   ))}
