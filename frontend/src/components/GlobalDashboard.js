@@ -231,7 +231,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Building2 className="w-7 h-7 text-indigo-600" />
-                Global Dashboard
+                Main Dashboard
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 All branches performance overview • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
