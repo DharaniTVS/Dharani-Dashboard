@@ -4,9 +4,10 @@ import Sidebar from './Sidebar';
 import FloatingAI from './FloatingAI';
 import { Card } from './ui/card';
 import { Input } from './ui/input';
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, ArrowUpRight, ArrowDownRight, BarChart3, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileDown, X } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
+import { TrendingUp, TrendingDown, Users, ShoppingCart, CheckCircle, DollarSign, Target, Activity, RefreshCw, Calendar, Download, FileDown, X, Percent } from 'lucide-react';
 import { Button } from './ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -15,16 +16,20 @@ const API = `${BACKEND_URL}/api`;
 
 const Dashboard = ({ user, onLogout }) => {
   const [salesData, setSalesData] = useState([]);
+  const [enquiryData, setEnquiryData] = useState([]);
+  const [bookingsData, setBookingsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBranch, setSelectedBranch] = useState('');
   const [stats, setStats] = useState({
+    totalSales: 0,
     totalEnquiries: 0,
     totalBookings: 0,
-    totalSold: 0,
     conversionRate: 0,
-    totalRevenue: 0
+    totalDCCollected: 0,
+    totalDiscountOperated: 0
   });
-  const [weeklyTrend, setWeeklyTrend] = useState([]);
+  const [salesTrendData, setSalesTrendData] = useState([]);
+  const [trendPeriod, setTrendPeriod] = useState('daily');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
@@ -49,10 +54,14 @@ const Dashboard = ({ user, onLogout }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/sheets/sales-data`, {
-        params: { branch: selectedBranch }
-      });
-      setSalesData(response.data.data || []);
+      const [salesRes, enquiryRes, bookingsRes] = await Promise.all([
+        axios.get(`${API}/sheets/sales-data`, { params: { branch: selectedBranch } }),
+        axios.get(`${API}/sheets/enquiry-data`, { params: { branch: selectedBranch } }),
+        axios.get(`${API}/sheets/bookings-data`, { params: { branch: selectedBranch } })
+      ]);
+      setSalesData(salesRes.data.data || []);
+      setEnquiryData(enquiryRes.data.data || []);
+      setBookingsData(bookingsRes.data.data || []);
       setLastSync(new Date());
     } catch (error) {
       console.error('Failed to fetch data:', error);
@@ -79,41 +88,88 @@ const Dashboard = ({ user, onLogout }) => {
   useEffect(() => {
     if (salesData.length > 0) {
       calculateStats();
-      calculateWeeklyTrend();
+      calculateSalesTrend();
     }
-  }, [salesData]);
+  }, [salesData, enquiryData, bookingsData, trendPeriod, startDate, endDate]);
 
   const calculateStats = () => {
-    const totalSold = salesData.length;
-    const totalRevenue = salesData.reduce((sum, record) => {
-      const costField = record['Vehicle Cost (₹)'] || record['Vehicle Cost (â₹)'] || 
-                       Object.entries(record).find(([key]) => key.toLowerCase().includes('vehicle cost'))?.[1] || '0';
-      const cost = parseFloat(String(costField).replace(/[^0-9.]/g, ''));
-      return sum + (isNaN(cost) ? 0 : cost);
+    const totalSales = salesData.length;
+    const totalEnquiries = enquiryData.length;
+    const totalBookings = bookingsData.length;
+    const conversionRate = totalEnquiries > 0 ? ((totalSales / totalEnquiries) * 100).toFixed(1) : 0;
+    
+    // Calculate Total DC (Document Charges) Collected
+    const totalDCCollected = salesData.reduce((sum, record) => {
+      const dc = parseFloat(String(record['Document Charges'] || '0').replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(dc) ? 0 : dc);
     }, 0);
 
-    const totalEnquiries = Math.round(totalSold * 3);
-    const totalBookings = Math.round(totalSold * 1.5);
-    const conversionRate = totalEnquiries > 0 ? ((totalSold / totalEnquiries) * 100).toFixed(1) : 0;
+    // Calculate Total Discount Operated
+    const totalDiscountOperated = salesData.reduce((sum, record) => {
+      const discountField = record['Discount Operated (₹)'] || record['Discount Operated (â₹)'] || 
+                           Object.entries(record).find(([key]) => key.toLowerCase().includes('discount'))?.[1] || '0';
+      const discount = parseFloat(String(discountField).replace(/[^0-9.]/g, ''));
+      return sum + (isNaN(discount) ? 0 : discount);
+    }, 0);
 
     setStats({
+      totalSales,
       totalEnquiries,
       totalBookings,
-      totalSold,
       conversionRate,
-      totalRevenue
+      totalDCCollected,
+      totalDiscountOperated
     });
   };
 
-  const calculateWeeklyTrend = () => {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const mockTrend = days.map((day, index) => ({
-      day,
-      sales: Math.floor(Math.random() * 30) + 10 + index * 3,
-      revenue: Math.floor(Math.random() * 500000) + 200000 + index * 50000,
-      enquiries: Math.floor(Math.random() * 50) + 20 + index * 5
-    }));
-    setWeeklyTrend(mockTrend);
+  const calculateSalesTrend = () => {
+    // Filter data by date range if set
+    let filteredSales = [...salesData];
+    if (startDate && endDate) {
+      filteredSales = salesData.filter(record => {
+        const saleDate = record['Sales Date'];
+        if (!saleDate) return false;
+        return saleDate >= startDate && saleDate <= endDate;
+      });
+    }
+
+    // Group by date and executive
+    const executiveMap = {};
+    const dateMap = {};
+
+    filteredSales.forEach(record => {
+      const exec = record['Executive Name'] || 'Unknown';
+      const dateStr = record['Sales Date'] || '';
+      
+      if (!executiveMap[exec]) executiveMap[exec] = true;
+      
+      let groupKey = dateStr;
+      if (trendPeriod === 'weekly') {
+        // Group by week
+        const date = new Date(dateStr);
+        const weekStart = new Date(date.setDate(date.getDate() - date.getDay()));
+        groupKey = weekStart.toISOString().split('T')[0];
+      } else if (trendPeriod === 'monthly') {
+        // Group by month
+        groupKey = dateStr.substring(0, 7); // YYYY-MM
+      }
+
+      if (!dateMap[groupKey]) {
+        dateMap[groupKey] = { date: groupKey };
+      }
+      dateMap[groupKey][exec] = (dateMap[groupKey][exec] || 0) + 1;
+    });
+
+    const trendData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+    setSalesTrendData(trendData);
+  };
+
+  const getExecutives = () => {
+    const execs = new Set();
+    salesData.forEach(record => {
+      if (record['Executive Name']) execs.add(record['Executive Name']);
+    });
+    return Array.from(execs);
   };
 
   // Drill-down handlers
@@ -121,18 +177,6 @@ const Dashboard = ({ user, onLogout }) => {
     const data = salesData.filter(record => record['Executive Name'] === exec);
     setDrillDownData(data);
     setDrillDownTitle(`Sales by ${exec}`);
-  };
-
-  const handleModelDrillDown = (model) => {
-    const data = salesData.filter(record => (record['Vehicle Model'] || '').includes(model));
-    setDrillDownData(data);
-    setDrillDownTitle(`Sales of ${model}`);
-  };
-
-  const handleCategoryDrillDown = (category) => {
-    const data = salesData.filter(record => record['Category'] === category);
-    setDrillDownData(data);
-    setDrillDownTitle(`${category} Sales`);
   };
 
   const closeDrillDown = () => {
@@ -149,7 +193,7 @@ const Dashboard = ({ user, onLogout }) => {
 
   const exportDrillDownToCSV = () => {
     if (!drillDownData) return;
-    const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name', 'Vehicle Cost'];
+    const headers = Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch');
     const csvContent = [
       headers.join(','),
       ...drillDownData.map(row => headers.map(h => `"${row[h] || ''}"`).join(','))
@@ -207,19 +251,6 @@ const Dashboard = ({ user, onLogout }) => {
     return Object.values(executiveMap).sort((a, b) => b.sales - a.sales).slice(0, 6);
   };
 
-  const getModelDistribution = () => {
-    const modelMap = {};
-    salesData.forEach(record => {
-      const model = record['Vehicle Model'] || 'Unknown';
-      modelMap[model] = (modelMap[model] || 0) + 1;
-    });
-
-    return Object.entries(modelMap)
-      .map(([name, value]) => ({ name: name.length > 12 ? name.substring(0, 12) + '...' : name, value, fullName: name }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  };
-
   const getCategoryDistribution = () => {
     const categoryMap = {};
     salesData.forEach(record => {
@@ -230,80 +261,46 @@ const Dashboard = ({ user, onLogout }) => {
     return Object.entries(categoryMap).map(([name, value]) => ({ name, value }));
   };
 
-  const StatCard = ({ title, value, subtitle, change, changeType, icon: Icon, color, bgGradient }) => (
-    <Card className={`p-5 rounded-2xl border-0 shadow-sm hover:shadow-md transition-all duration-300 ${bgGradient}`} data-testid={`stat-card-${title.toLowerCase().replace(/\s/g, '-')}`}>
-      <div className="flex items-start justify-between mb-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
-          <Icon className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex items-center gap-1.5">
-          {changeType === 'up' ? (
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-green-100 rounded-full">
-              <TrendingUp className="w-3 h-3 text-green-600" />
-              <span className="text-xs font-semibold text-green-600">+{change}%</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-red-100 rounded-full">
-              <TrendingDown className="w-3 h-3 text-red-600" />
-              <span className="text-xs font-semibold text-red-600">-{change}%</span>
-            </div>
-          )}
-        </div>
-      </div>
-      <div>
-        <h3 className="text-2xl font-bold text-gray-900 mb-1">{value}</h3>
-        <p className="text-sm font-medium text-gray-600">{title}</p>
-        <p className="text-xs text-gray-500 mt-1">{subtitle}</p>
-      </div>
-      {/* Mini trend line */}
-      <div className="mt-3 h-8">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={weeklyTrend}>
-            <Area 
-              type="monotone" 
-              dataKey="sales" 
-              stroke={changeType === 'up' ? '#10b981' : '#ef4444'} 
-              fill={changeType === 'up' ? '#d1fae5' : '#fee2e2'}
-              strokeWidth={1.5}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </Card>
-  );
+  const getPaymentDistribution = () => {
+    const paymentMap = {};
+    salesData.forEach(record => {
+      const payment = record['Cash/HP'] || 'Unknown';
+      paymentMap[payment] = (paymentMap[payment] || 0) + 1;
+    });
 
-  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
+    return Object.entries(paymentMap).map(([name, value]) => ({ name, value }));
+  };
+
+  const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444', '#14b8a6'];
+  const EXEC_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#8b5cf6', '#ef4444', '#14b8a6'];
 
   const formatNumber = (value) => {
     return new Intl.NumberFormat('en-IN').format(value);
   };
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-          <p className="text-sm font-semibold text-gray-900">{label}</p>
-          {payload.map((entry, index) => (
-            <p key={index} className="text-xs text-gray-600">
-              {entry.name}: <span className="font-semibold" style={{ color: entry.color }}>{
-                entry.name === 'revenue' ? formatCurrency(entry.value) : entry.value
-              }</span>
-            </p>
-          ))}
+  // KPI Card Component
+  const KPICard = ({ title, value, icon: Icon, color, bgColor }) => (
+    <Card className={`p-5 rounded-xl border-0 shadow-sm ${bgColor}`} data-testid={`kpi-${title.toLowerCase().replace(/\s/g, '-')}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
         </div>
-      );
-    }
-    return null;
-  };
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
+    </Card>
+  );
 
   if (loading) {
     return (
-      <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen">
+      <div className="flex bg-gray-50 min-h-screen">
         <Sidebar user={user} onLogout={onLogout} />
         <div className="flex-1 p-8 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+            <p className="text-gray-600">Loading dashboard...</p>
           </div>
         </div>
       </div>
@@ -311,38 +308,20 @@ const Dashboard = ({ user, onLogout }) => {
   }
 
   return (
-    <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="dashboard-page">
+    <div className="flex bg-gray-50 min-h-screen" data-testid="dashboard-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
       <div className="flex-1 overflow-auto">
         {/* Header */}
-        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
+        <div className="bg-white border-b border-gray-200 px-8 py-5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sales Dashboard</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <h1 className="text-2xl font-bold text-gray-900">Sales Dashboard</h1>
+              <p className="text-sm text-gray-500 mt-1">
                 <span className="font-medium text-indigo-600">{selectedBranch}</span> branch • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
-                {loading && <span className="ml-2 text-indigo-600">Syncing...</span>}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              {/* Date Filter */}
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-500" />
-                <Input
-                  type="date" style={{ color: "#1f2937" }}
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
-                />
-                <span className="text-gray-400">-</span>
-                <Input
-                  type="date" style={{ color: "#1f2937" }}
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-36 h-9 text-sm bg-white dark:bg-slate-700"
-                />
-              </div>
               <Button 
                 variant="outline" 
                 className="gap-2 text-gray-600"
@@ -362,7 +341,7 @@ const Dashboard = ({ user, onLogout }) => {
             </span>
             <button 
               onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
-              className="text-xs text-indigo-600 hover:underline"
+              className="text-xs text-indigo-600 hover:underline cursor-pointer"
             >
               {autoSyncEnabled ? 'Disable' : 'Enable'}
             </button>
@@ -370,147 +349,162 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         <div className="p-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <StatCard
-              title="Total Revenue"
-              value={formatCurrency(stats.totalRevenue)}
-              subtitle="vs. Previous week"
-              change="12.8"
-              changeType="up"
-              icon={DollarSign}
-              color="bg-gradient-to-br from-indigo-500 to-indigo-600"
-              bgGradient="bg-gradient-to-br from-indigo-50 to-white dark:from-slate-800 dark:to-slate-700"
+          {/* KPI Cards - 6 cards in a row */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+            <KPICard
+              title="Total Sales"
+              value={formatNumber(stats.totalSales)}
+              icon={ShoppingCart}
+              color="bg-indigo-500"
+              bgColor="bg-indigo-50"
             />
-            <StatCard
-              title="Average Order Value"
-              value={formatCurrency(stats.totalRevenue / (stats.totalSold || 1))}
-              subtitle="Per vehicle"
-              change="5.4"
-              changeType="up"
-              icon={Target}
-              color="bg-gradient-to-br from-purple-500 to-purple-600"
-              bgGradient="bg-gradient-to-br from-purple-50 to-white"
-            />
-            <StatCard
-              title="Conversion Rate"
-              value={`${stats.conversionRate}%`}
-              subtitle="Enquiry to sale"
-              change="2.0"
-              changeType="up"
-              icon={Activity}
-              color="bg-gradient-to-br from-green-500 to-green-600"
-              bgGradient="bg-gradient-to-br from-green-50 to-white"
-            />
-            <StatCard
-              title="Total Units Sold"
-              value={formatNumber(stats.totalSold)}
-              subtitle="This period"
-              change="2.1"
-              changeType="down"
-              icon={CheckCircle}
-              color="bg-gradient-to-br from-orange-500 to-orange-600"
-              bgGradient="bg-gradient-to-br from-orange-50 to-white"
-            />
-            <StatCard
+            <KPICard
               title="Total Enquiries"
               value={formatNumber(stats.totalEnquiries)}
-              subtitle="Estimated"
-              change="8.3"
-              changeType="up"
               icon={Users}
-              color="bg-gradient-to-br from-pink-500 to-pink-600"
-              bgGradient="bg-gradient-to-br from-pink-50 to-white"
+              color="bg-blue-500"
+              bgColor="bg-blue-50"
+            />
+            <KPICard
+              title="Total Bookings"
+              value={formatNumber(stats.totalBookings)}
+              icon={CheckCircle}
+              color="bg-green-500"
+              bgColor="bg-green-50"
+            />
+            <KPICard
+              title="Conversion Ratio"
+              value={`${stats.conversionRate}%`}
+              icon={Percent}
+              color="bg-purple-500"
+              bgColor="bg-purple-50"
+            />
+            <KPICard
+              title="Total DC Collected"
+              value={formatCurrency(stats.totalDCCollected)}
+              icon={DollarSign}
+              color="bg-orange-500"
+              bgColor="bg-orange-50"
+            />
+            <KPICard
+              title="Total Discount"
+              value={formatCurrency(stats.totalDiscountOperated)}
+              icon={Target}
+              color="bg-pink-500"
+              bgColor="bg-pink-50"
             />
           </div>
 
-          {/* Main Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            {/* Revenue Trend Chart */}
-            <Card className="lg:col-span-2 p-5 bg-white rounded-2xl border-0 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Revenue Trend</h3>
-                  <p className="text-xs text-gray-500">Weekly revenue performance</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
-                    <span className="text-xs text-gray-600">Revenue</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="text-xs text-gray-600">Sales</span>
-                  </div>
+          {/* Sales Trend Chart - Line Chart with Executive-wise breakdown */}
+          <Card className="p-5 bg-white rounded-xl border-0 shadow-sm mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Sales Trend by Executive</h3>
+                <p className="text-xs text-gray-500">Performance trend over time</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Period Selector */}
+                <Select value={trendPeriod} onValueChange={setTrendPeriod}>
+                  <SelectTrigger className="w-32 bg-white text-gray-900 border-gray-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white z-[100]">
+                    <SelectItem value="daily" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Daily</SelectItem>
+                    <SelectItem value="weekly" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Weekly</SelectItem>
+                    <SelectItem value="monthly" className="text-gray-900 cursor-pointer hover:bg-indigo-50 data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+                {/* Date Range */}
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-36 h-9 text-sm bg-white text-gray-900 border-gray-300"
+                    style={{ color: '#1f2937' }}
+                  />
+                  <span className="text-gray-400">to</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-36 h-9 text-sm bg-white text-gray-900 border-gray-300"
+                    style={{ color: '#1f2937' }}
+                  />
                 </div>
               </div>
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={weeklyTrend}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                    </linearGradient>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="day" stroke="#9ca3af" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(value) => `₹${value/1000}K`} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke="#6366f1" 
-                    strokeWidth={2.5}
-                    fillOpacity={1} 
-                    fill="url(#colorRevenue)" 
-                    name="revenue"
-                    dot={{ fill: '#6366f1', strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6, stroke: '#6366f1', strokeWidth: 2, fill: '#fff' }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="sales" 
-                    stroke="#10b981" 
+            </div>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={salesTrendData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="#9ca3af" 
+                  tick={{ fontSize: 11 }} 
+                  axisLine={false} 
+                  tickLine={false}
+                  tickFormatter={(value) => {
+                    if (trendPeriod === 'monthly') return value;
+                    const date = new Date(value);
+                    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                  }}
+                />
+                <YAxis 
+                  stroke="#9ca3af" 
+                  tick={{ fontSize: 11 }} 
+                  axisLine={false} 
+                  tickLine={false}
+                  label={{ value: 'No. of Sales', angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280' } }}
+                />
+                <Tooltip 
+                  contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                />
+                <Legend />
+                {getExecutives().map((exec, index) => (
+                  <Line
+                    key={exec}
+                    type="monotone"
+                    dataKey={exec}
+                    name={exec}
+                    stroke={EXEC_COLORS[index % EXEC_COLORS.length]}
                     strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#colorSales)" 
-                    name="sales"
-                    dot={{ fill: '#10b981', strokeWidth: 0, r: 3 }}
+                    dot={{ fill: EXEC_COLORS[index % EXEC_COLORS.length], r: 4 }}
+                    activeDot={{ r: 6, cursor: 'pointer' }}
+                    connectNulls
                   />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Card>
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </Card>
 
-            {/* Sales by Category Pie */}
-            <Card className="p-5 bg-white rounded-2xl border-0 shadow-sm">
+          {/* Bottom Row - Pie Charts and Executive Performance */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Sales by Category - Pie Chart */}
+            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Sales by Category</h3>
                 <p className="text-xs text-gray-500">Distribution by vehicle type</p>
               </div>
-              <ResponsiveContainer width="100%" height={200}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={getCategoryDistribution()}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
                     outerRadius={80}
-                    paddingAngle={3}
                     dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
                   >
                     {getCategoryDistribution().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cursor="pointer" />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value, name) => [value, name]} />
                 </PieChart>
               </ResponsiveContainer>
-              {/* Legend */}
-              <div className="flex flex-wrap gap-3 justify-center mt-2">
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
                 {getCategoryDistribution().map((entry, index) => (
                   <div key={entry.name} className="flex items-center gap-1.5">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
@@ -519,12 +513,47 @@ const Dashboard = ({ user, onLogout }) => {
                 ))}
               </div>
             </Card>
-          </div>
 
-          {/* Bottom Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Payment Mode - Pie Chart */}
+            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-gray-900">Payment Mode</h3>
+                <p className="text-xs text-gray-500">Cash vs Finance distribution</p>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie
+                    data={getPaymentDistribution()}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {getPaymentDistribution().map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.name === 'Cash' ? '#10b981' : '#8b5cf6'} 
+                        cursor="pointer"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value, name) => [value, name]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-3 justify-center mt-2">
+                {getPaymentDistribution().map((entry, index) => (
+                  <div key={entry.name} className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.name === 'Cash' ? '#10b981' : '#8b5cf6' }}></div>
+                    <span className="text-xs text-gray-600">{entry.name}: {entry.value}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
             {/* Executive Performance */}
-            <Card className="p-5 bg-white rounded-2xl border-0 shadow-sm">
+            <Card className="p-5 bg-white rounded-xl border-0 shadow-sm">
               <div className="mb-4">
                 <h3 className="text-lg font-bold text-gray-900">Executive Performance</h3>
                 <p className="text-xs text-gray-500">Top performers by sales count</p>
@@ -533,63 +562,30 @@ const Dashboard = ({ user, onLogout }) => {
                 <BarChart data={getExecutivePerformance()} layout="vertical" barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
                   <XAxis type="number" stroke="#9ca3af" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis dataKey="name" type="category" stroke="#9ca3af" tick={{ fontSize: 10 }} width={70} axisLine={false} tickLine={false} />
-                  <Tooltip 
-                    contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
-                    formatter={(value, name) => [value, name === 'sales' ? 'Sales' : 'Revenue']}
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    stroke="#9ca3af" 
+                    tick={{ fontSize: 10 }} 
+                    width={70} 
+                    axisLine={false} 
+                    tickLine={false}
                   />
-                  <Bar dataKey="sales" fill="url(#barGradient)" radius={[0, 6, 6, 0]} name="sales">
-                    <defs>
-                      <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#6366f1" />
-                        <stop offset="100%" stopColor="#8b5cf6" />
-                      </linearGradient>
-                    </defs>
-                  </Bar>
+                  <Tooltip 
+                    contentStyle={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px', cursor: 'default' }}
+                    formatter={(value) => [value, 'Sales']}
+                    cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
+                  />
+                  <Bar 
+                    dataKey="sales" 
+                    fill="#6366f1" 
+                    radius={[0, 6, 6, 0]} 
+                    name="Sales"
+                    cursor="pointer"
+                    onClick={(data) => handleExecutiveDrillDown(data.name)}
+                  />
                 </BarChart>
               </ResponsiveContainer>
-            </Card>
-
-            {/* Top Selling Models */}
-            <Card className="p-5 bg-white rounded-2xl border-0 shadow-sm">
-              <div className="mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Top Selling Models</h3>
-                <p className="text-xs text-gray-500">Best performing vehicles</p>
-              </div>
-              <div className="space-y-3">
-                {getModelDistribution().map((model, index) => (
-                  <div 
-                    key={model.name} 
-                    className="flex items-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700 p-2 rounded-lg transition-colors" 
-                    data-testid={`model-item-${index}`}
-                    onClick={() => handleModelDrillDown(model.fullName)}
-                  >
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs"
-                         style={{ backgroundColor: COLORS[index % COLORS.length] }}>
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white" title={model.fullName}>{model.name}</span>
-                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{model.value}</span>
-                      </div>
-                      <div className="w-full bg-gray-100 dark:bg-slate-600 rounded-full h-1.5">
-                        <div 
-                          className="h-1.5 rounded-full transition-all duration-500"
-                          style={{ 
-                            width: `${(model.value / getModelDistribution()[0].value) * 100}%`,
-                            backgroundColor: COLORS[index % COLORS.length]
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-green-600">
-                      <TrendingUp className="w-3 h-3" />
-                      <span className="text-xs font-medium">+{Math.floor(Math.random() * 20 + 5)}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </Card>
           </div>
         </div>
@@ -598,9 +594,9 @@ const Dashboard = ({ user, onLogout }) => {
       {/* Drill-down Modal */}
       {drillDownData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="bg-white dark:bg-slate-800 rounded-2xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white">{drillDownTitle}</h3>
+          <Card className="bg-white rounded-2xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">{drillDownTitle}</h3>
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
@@ -616,39 +612,29 @@ const Dashboard = ({ user, onLogout }) => {
                 >
                   <FileDown className="w-4 h-4 mr-1" /> PDF
                 </Button>
-                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded">
+                <button onClick={closeDrillDown} className="p-1 hover:bg-gray-100 rounded cursor-pointer">
                   <X className="w-5 h-5 text-gray-500" />
                 </button>
               </div>
             </div>
-            <div className="p-4 text-sm text-gray-600 dark:text-gray-400">
+            <div className="p-4 text-sm text-gray-600">
               {drillDownData.length} records found
             </div>
             <div className="overflow-auto max-h-[60vh]">
               <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-slate-700 sticky top-0">
+                <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Date</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Customer</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Phone</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Model</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Category</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Executive</th>
-                    <th className="text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase py-3 px-4">Cost</th>
+                    {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').map((col, idx) => (
+                      <th key={idx} className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-4 whitespace-nowrap">{col}</th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-slate-600">
+                <tbody className="divide-y divide-gray-200">
                   {drillDownData.map((record, index) => (
-                    <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700">
-                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Sales Date'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">{record['Customer Name'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Mobile No'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white">{record['Vehicle Model'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Category'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-400">{record['Executive Name'] || '-'}</td>
-                      <td className="py-3 px-4 text-sm text-gray-900 dark:text-white font-medium">
-                        ₹{record['Vehicle Cost (₹)'] || Object.entries(record).find(([k]) => k.toLowerCase().includes('vehicle cost'))?.[1] || '-'}
-                      </td>
+                    <tr key={index} className="hover:bg-gray-50">
+                      {Object.keys(drillDownData[0] || {}).filter(k => k !== 'Branch').map((col, colIdx) => (
+                        <td key={colIdx} className="py-3 px-4 text-sm text-gray-700 whitespace-nowrap">{record[col] || '-'}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
