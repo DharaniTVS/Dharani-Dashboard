@@ -48,7 +48,7 @@ const Enquiries = ({ user, onLogout }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/sheets/sales-data`, {
+      const response = await axios.get(`${API}/sheets/enquiry-data`, {
         params: { branch: selectedBranch }
       });
       setSalesData(response.data.data || []);

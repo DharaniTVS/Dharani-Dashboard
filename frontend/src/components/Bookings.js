@@ -48,7 +48,7 @@ const Bookings = ({ user, onLogout }) => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${API}/sheets/sales-data`, {
+      const response = await axios.get(`${API}/sheets/bookings-data`, {
         params: { branch: selectedBranch }
       });
       setSalesData(response.data.data || []);
