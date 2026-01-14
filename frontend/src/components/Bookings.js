@@ -264,13 +264,15 @@ const Bookings = ({ user, onLogout }) => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Booking Date</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Customer Name</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Phone No</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Model</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Executive</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Booking Amount</th>
-                      <th className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-6">Payment Mode</th>
+                      {/* Dynamic columns from data */}
+                      {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, idx) => (
+                        <th 
+                          key={idx}
+                          className="text-left text-xs font-semibold text-gray-600 uppercase tracking-wider py-3 px-4 whitespace-nowrap"
+                        >
+                          {column}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -280,21 +282,28 @@ const Bookings = ({ user, onLogout }) => {
                         className="hover:bg-gray-50 transition-colors"
                         data-testid={`booking-row-${index}`}
                       >
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Booking Date'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-gray-900">{record['Customer Name'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Phone No'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900">{record['Model'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-600">{record['Executive'] || '-'}</td>
-                        <td className="py-4 px-6 text-sm text-gray-900 font-medium">
-                          ₹{record['Booking Amount'] || '-'}
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            record['Payment Mode'] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
-                          }`}>
-                            {record['Payment Mode'] || '-'}
-                          </span>
-                        </td>
+                        {Object.keys(filteredData[0] || {}).filter(col => col !== 'Branch').map((column, colIdx) => (
+                          <td 
+                            key={colIdx}
+                            className={`py-3 px-4 text-sm whitespace-nowrap ${
+                              column.includes('Amount') || column.includes('₹') 
+                                ? 'text-gray-900 font-medium' 
+                                : 'text-gray-700'
+                            }`}
+                          >
+                            {column === 'Payment Mode' ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                record[column] === 'Cash' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                              }`}>
+                                {record[column] || '-'}
+                              </span>
+                            ) : column.includes('Amount') ? (
+                              `₹${record[column] || '-'}`
+                            ) : (
+                              record[column] || '-'
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
