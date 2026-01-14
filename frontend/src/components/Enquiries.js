@@ -116,20 +116,31 @@ const Enquiries = ({ user, onLogout }) => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Sales Date', 'Customer Name', 'Mobile No', 'Vehicle Model', 'Category', 'Executive Name'];
+    if (!filteredData || filteredData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+    
+    // Get all unique headers from the data (excluding Branch)
+    const allHeaders = [...new Set(filteredData.flatMap(row => Object.keys(row)))].filter(h => h !== 'Branch');
+    
     const csvContent = [
-      headers.join(','),
+      allHeaders.join(','),
       ...filteredData.map(row => 
-        headers.map(header => `"${row[header] || ''}"`).join(',')
+        allHeaders.map(header => {
+          const value = row[header] || '';
+          return `"${String(value).replace(/"/g, '""')}"`;
+        }).join(',')
       )
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `enquiries-${selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   return (
