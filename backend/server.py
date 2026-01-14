@@ -351,11 +351,12 @@ async def get_sheets_sales_data(
     end_date: Optional[str] = Query(None),
     branch: Optional[str] = Query(None),
     executive: Optional[str] = Query(None),
+    data_type: Optional[str] = Query("Sold"),  # Sold, Enquiry, or Bookings
     user: User = Depends(get_current_user)
 ):
     """Get sales data from Google Sheets with filters"""
     try:
-        sales_data = await sheets_service.get_sales_data(branch)
+        sales_data = await sheets_service.get_sales_data(branch, data_type)
         
         # Apply filters
         filtered_data = []
@@ -367,15 +368,17 @@ async def get_sheets_sales_data(
                 if search_lower not in searchable:
                     continue
             
-            # Date filter
+            # Date filter - try multiple date field names
             if start_date and end_date:
-                sale_date = record.get('Sales Date', '')
-                if sale_date and (sale_date < start_date or sale_date > end_date):
+                date_value = record.get('Sales Date') or record.get('Date') or record.get('Enquiry Date') or record.get('Booking Date') or ''
+                if date_value and (date_value < start_date or date_value > end_date):
                     continue
             
             # Executive filter  
-            if executive and record.get('Executive Name', '') != executive:
-                continue
+            if executive:
+                exec_name = record.get('Executive Name') or record.get('Executive') or ''
+                if exec_name != executive:
+                    continue
             
             filtered_data.append(record)
         
@@ -385,6 +388,84 @@ async def get_sheets_sales_data(
         }
     except Exception as e:
         logger.error(f"Sheets sales data error: {e}")
+        return {"data": [], "total": 0}
+
+@api_router.get("/sheets/enquiry-data")
+async def get_sheets_enquiry_data(
+    search: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch: Optional[str] = Query(None),
+    executive: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get enquiry data from Google Sheets"""
+    try:
+        enquiry_data = await sheets_service.get_enquiry_data(branch)
+        
+        # Apply filters
+        filtered_data = []
+        for record in enquiry_data:
+            if search:
+                search_lower = search.lower()
+                searchable = str(record).lower()
+                if search_lower not in searchable:
+                    continue
+            
+            if start_date and end_date:
+                date_value = record.get('Enquiry Date') or record.get('Date') or ''
+                if date_value and (date_value < start_date or date_value > end_date):
+                    continue
+            
+            if executive:
+                exec_name = record.get('Executive Name') or record.get('Executive') or ''
+                if exec_name != executive:
+                    continue
+            
+            filtered_data.append(record)
+        
+        return {"data": filtered_data, "total": len(filtered_data)}
+    except Exception as e:
+        logger.error(f"Sheets enquiry data error: {e}")
+        return {"data": [], "total": 0}
+
+@api_router.get("/sheets/bookings-data")
+async def get_sheets_bookings_data(
+    search: Optional[str] = Query(None),
+    start_date: Optional[str] = Query(None),
+    end_date: Optional[str] = Query(None),
+    branch: Optional[str] = Query(None),
+    executive: Optional[str] = Query(None),
+    user: User = Depends(get_current_user)
+):
+    """Get bookings data from Google Sheets"""
+    try:
+        bookings_data = await sheets_service.get_bookings_data(branch)
+        
+        # Apply filters
+        filtered_data = []
+        for record in bookings_data:
+            if search:
+                search_lower = search.lower()
+                searchable = str(record).lower()
+                if search_lower not in searchable:
+                    continue
+            
+            if start_date and end_date:
+                date_value = record.get('Booking Date') or record.get('Date') or ''
+                if date_value and (date_value < start_date or date_value > end_date):
+                    continue
+            
+            if executive:
+                exec_name = record.get('Executive Name') or record.get('Executive') or ''
+                if exec_name != executive:
+                    continue
+            
+            filtered_data.append(record)
+        
+        return {"data": filtered_data, "total": len(filtered_data)}
+    except Exception as e:
+        logger.error(f"Sheets bookings data error: {e}")
         return {"data": [], "total": 0}
 
 @api_router.get("/sheets/stock-data")
