@@ -346,7 +346,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
               </Button>
               <div className="flex items-center gap-1 ml-2">
                 <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500' : 'bg-gray-400'}`}></div>
-                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-500 hover:text-indigo-600" style={{ cursor: 'pointer' }}>
+                <button onClick={() => setAutoSyncEnabled(!autoSyncEnabled)} className="text-xs text-gray-600 hover:text-indigo-700 focus:outline-none focus:text-indigo-700" style={{ cursor: 'pointer', backgroundColor: 'transparent' }}>
                   {autoSyncEnabled ? 'Auto' : 'Manual'}
                 </button>
               </div>
