@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, HelpCircle, ChevronDown, ChevronRight, Building2 } from 'lucide-react';
+import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, ChevronDown, ChevronRight, Building2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const Sidebar = ({ user, onLogout }) => {
@@ -187,13 +187,8 @@ const Sidebar = ({ user, onLogout }) => {
             <span className="text-sm">Inventory</span>
           </div>
         </Link>
-          </>
-        )}
 
         <div className="pt-6 mt-6 border-t border-gray-200">
-          <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-3">
-            Support
-          </div>
           <Link to="/settings" data-testid="nav-settings">
             <div className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
               isActive('/settings')
@@ -204,10 +199,6 @@ const Sidebar = ({ user, onLogout }) => {
               <span className="text-sm">Settings</span>
             </div>
           </Link>
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 hover:text-gray-900 transition-all duration-200 w-full">
-            <HelpCircle className="w-5 h-5" />
-            <span className="text-sm">Help & Support</span>
-          </button>
         </div>
       </nav>
 
