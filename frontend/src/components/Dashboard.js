@@ -274,13 +274,6 @@ const Dashboard = ({ user, onLogout }) => {
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
 
-  const formatCurrency = (value) => {
-    if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)} Cr`;
-    if (value >= 100000) return `₹${(value / 100000).toFixed(2)} L`;
-    if (value >= 1000) return `₹${(value / 1000).toFixed(1)}K`;
-    return `₹${value}`;
-  };
-
   const formatNumber = (value) => {
     return new Intl.NumberFormat('en-IN').format(value);
   };
@@ -305,12 +298,12 @@ const Dashboard = ({ user, onLogout }) => {
 
   if (loading) {
     return (
-      <div className="flex bg-gray-50 min-h-screen">
+      <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen">
         <Sidebar user={user} onLogout={onLogout} />
         <div className="flex-1 p-8 flex items-center justify-center">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading dashboard...</p>
+            <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
           </div>
         </div>
       </div>
