@@ -149,6 +149,43 @@ button,
   cursor: pointer !important;
 }
 
+/* Fix focus/highlight state - prevent text from becoming invisible */
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
+}
+
+/* Fix highlight color on all elements */
+a:hover, a:focus,
+button:hover, button:focus,
+[role="button"]:hover, [role="button"]:focus {
+  color: inherit;
+}
+
+/* Ensure text remains visible on hover for links and buttons */
+.text-indigo-600:hover,
+.text-gray-500:hover,
+.text-gray-600:hover,
+.hover\:underline:hover {
+  color: #4f46e5 !important;
+}
+
+/* Fix for any element with hover state hiding text */
+[class*="hover:"]:hover {
+  color: inherit;
+}
+
+/* Specific fix for the Disable/Enable auto-sync button */
+button.text-xs:hover,
+.text-xs.text-indigo-600:hover {
+  color: #4338ca !important;
+  background-color: transparent !important;
+}
+
 /* Dark mode body styles */
 .dark body,
 .dark {
