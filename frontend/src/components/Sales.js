@@ -245,7 +245,8 @@ const Sales = ({ user, onLogout }) => {
             </span>
             <button 
               onClick={() => setAutoSyncEnabled(!autoSyncEnabled)}
-              className="text-xs text-indigo-600 hover:underline"
+              className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline focus:outline-none focus:text-indigo-800"
+              style={{ cursor: 'pointer' }}
             >
               {autoSyncEnabled ? 'Disable' : 'Enable'}
             </button>
