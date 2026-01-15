@@ -116,7 +116,7 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
-        {/* Branch Dashboard */}
+        {/* Sales Dashboard */}
         <Link to="/dashboard" data-testid="nav-dashboard">
           <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
             isActive('/dashboard')
@@ -128,52 +128,39 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
-        {/* Sales Module */}
-        <div>
-          <button 
-            onClick={() => setIsSalesOpen(!isSalesOpen)}
-            className="w-full flex items-center justify-between px-3 py-2 lg:py-2.5 rounded-lg text-gray-700 hover:bg-gray-100 transition-all duration-200"
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="flex items-center gap-2 lg:gap-3">
-              <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
-              <span className="text-sm">Sales</span>
-            </div>
-            {isSalesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-          
-          {isSalesOpen && (
-            <div className="ml-6 lg:ml-8 mt-1 space-y-1">
-              <Link to="/enquiries" data-testid="nav-enquiries">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/enquiries')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Enquiries
-                </div>
-              </Link>
-              <Link to="/bookings" data-testid="nav-bookings">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/bookings')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Bookings
-                </div>
-              </Link>
-              <Link to="/" data-testid="nav-sold">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Sold
-                </div>
-              </Link>
-            </div>
-          )}
-        </div>
+        {/* Sales Data - Enquiries, Bookings, Sold */}
+        <Link to="/enquiries" data-testid="nav-enquiries">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/enquiries')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Enquiries</span>
+          </div>
+        </Link>
+
+        <Link to="/bookings" data-testid="nav-bookings">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/bookings')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Bookings</span>
+          </div>
+        </Link>
+
+        <Link to="/" data-testid="nav-sold">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Sold</span>
+          </div>
+        </Link>
 
         {/* Service */}
         <Link to="/service" data-testid="nav-service">
