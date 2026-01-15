@@ -175,7 +175,7 @@ const Service = ({ user, onLogout }) => {
     <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="service-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-16 lg:pt-0">
         {/* Header */}
         <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
           <div className="flex items-center justify-between">
