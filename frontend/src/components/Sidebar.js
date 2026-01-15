@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, Building2, Menu, X } from 'lucide-react';
+import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, ChevronDown, ChevronRight, Building2, Menu, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
   const [selectedBranch, setSelectedBranch] = useState('Kumarapalayam');
+  const [isSalesOpen, setIsSalesOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const branches = [
