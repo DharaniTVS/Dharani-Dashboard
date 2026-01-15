@@ -97,23 +97,38 @@ const Sales = ({ user, onLogout }) => {
   const applyFilters = () => {
     let filtered = [...salesData];
 
+    // Search across all fields
     if (searchTerm) {
-      const search = searchTerm.toLowerCase();
-      filtered = filtered.filter(record => 
-        (record['Customer Name'] || '').toLowerCase().includes(search) ||
-        (record['Mobile No'] || '').toLowerCase().includes(search) ||
-        (record['Vehicle Model'] || '').toLowerCase().includes(search)
-      );
+      const search = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(record => {
+        // Search in all string values of the record
+        return Object.values(record).some(value => 
+          String(value || '').toLowerCase().includes(search)
+        );
+      });
     }
 
     if (selectedExecutive && selectedExecutive !== 'all') {
       filtered = filtered.filter(record => record['Executive Name'] === selectedExecutive);
     }
 
+    // Date filter - handle different date formats
     if (startDate && endDate) {
       filtered = filtered.filter(record => {
         const saleDate = record['Sales Date'] || '';
-        return saleDate >= startDate && saleDate <= endDate;
+        if (!saleDate) return false;
+        
+        // Try to normalize date for comparison
+        try {
+          const recordDate = new Date(saleDate);
+          const start = new Date(startDate);
+          const end = new Date(endDate);
+          end.setHours(23, 59, 59); // Include the end date fully
+          return recordDate >= start && recordDate <= end;
+        } catch {
+          // Fallback to string comparison
+          return saleDate >= startDate && saleDate <= endDate;
+        }
       });
     }
 
