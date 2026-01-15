@@ -116,51 +116,65 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
-        {/* Sales Dashboard */}
-        <Link to="/dashboard" data-testid="nav-dashboard">
-          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-            isActive('/dashboard')
-              ? 'bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}>
-            <BarChart3 className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm">Sales Dashboard</span>
-          </div>
-        </Link>
-
-        {/* Sales Data - Enquiries, Bookings, Sold */}
-        <Link to="/enquiries" data-testid="nav-enquiries">
-          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-            isActive('/enquiries')
-              ? 'bg-indigo-100 text-indigo-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-          }`}>
-            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm">Enquiries</span>
-          </div>
-        </Link>
-
-        <Link to="/bookings" data-testid="nav-bookings">
-          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-            isActive('/bookings')
-              ? 'bg-indigo-100 text-indigo-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-          }`}>
-            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm">Bookings</span>
-          </div>
-        </Link>
-
-        <Link to="/" data-testid="nav-sold">
-          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-            isActive('/')
-              ? 'bg-indigo-100 text-indigo-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-          }`}>
-            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm">Sold</span>
-          </div>
-        </Link>
+        {/* Sales - Main Menu with Submenu */}
+        <div>
+          <button 
+            onClick={() => setIsSalesOpen(!isSalesOpen)}
+            className={`w-full flex items-center justify-between px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+              ['/dashboard', '/enquiries', '/bookings', '/'].includes(location.pathname)
+                ? 'bg-indigo-50 text-indigo-700'
+                : 'text-gray-700 hover:bg-gray-100'
+            }`}
+            style={{ cursor: 'pointer' }}
+          >
+            <div className="flex items-center gap-2 lg:gap-3">
+              <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
+              <span className="text-sm font-medium">Sales</span>
+            </div>
+            {isSalesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+          
+          {isSalesOpen && (
+            <div className="ml-6 lg:ml-8 mt-1 space-y-1">
+              <Link to="/dashboard" data-testid="nav-dashboard">
+                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/dashboard')
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}>
+                  Dashboard
+                </div>
+              </Link>
+              <Link to="/enquiries" data-testid="nav-enquiries">
+                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/enquiries')
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}>
+                  Enquiry
+                </div>
+              </Link>
+              <Link to="/bookings" data-testid="nav-bookings">
+                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/bookings')
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}>
+                  Bookings
+                </div>
+              </Link>
+              <Link to="/" data-testid="nav-sold">
+                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
+                  isActive('/')
+                    ? 'bg-indigo-100 text-indigo-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                }`}>
+                  Sold
+                </div>
+              </Link>
+            </div>
+          )}
+        </div>
 
         {/* Service */}
         <Link to="/service" data-testid="nav-service">
