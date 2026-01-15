@@ -284,42 +284,42 @@ const Sales = ({ user, onLogout }) => {
           </div>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 lg:p-8">
           {/* Filters Section */}
-          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-6 mb-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Filter className="w-5 h-5 text-gray-600" />
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Filters</h3>
+          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 lg:p-6 mb-4 lg:mb-6">
+            <div className="flex items-center gap-2 mb-3 lg:mb-4">
+              <Filter className="w-4 h-4 lg:w-5 lg:h-5 text-gray-600" />
+              <h3 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white">Filters</h3>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
               {/* Search */}
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
+              <div className="sm:col-span-2">
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 lg:mb-2">Search</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
                     type="text"
-                    placeholder="Search by name, phone, model..."
+                    placeholder="Search any field..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
+                    className="pl-10 h-9 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600"
                     data-testid="search-input"
                   />
                 </div>
               </div>
 
-              {/* Executive Filter - Clickable for drill-down */}
+              {/* Executive Filter */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Executive</label>
+                <label className="block text-xs lg:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 lg:mb-2">Executive</label>
                 <Select value={selectedExecutive} onValueChange={setSelectedExecutive}>
-                  <SelectTrigger className="bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600">
+                  <SelectTrigger className="h-9 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white border-gray-300 dark:border-slate-600">
                     <SelectValue placeholder="All Executives" />
                   </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-slate-700">
-                    <SelectItem value="all" className="text-gray-900 dark:text-white">All Executives</SelectItem>
+                  <SelectContent className="bg-white dark:bg-slate-700 z-[9999]">
+                    <SelectItem value="all" className="text-gray-900 dark:text-white cursor-pointer">All Executives</SelectItem>
                     {executives.map(executive => (
-                      <SelectItem key={executive} value={executive} className="text-gray-900 dark:text-white">{executive}</SelectItem>
+                      <SelectItem key={executive} value={executive} className="text-gray-900 dark:text-white cursor-pointer">{executive}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -329,10 +329,11 @@ const Sales = ({ user, onLogout }) => {
               <div className="flex items-end">
                 <Button 
                   variant="outline" 
+                  size="sm"
                   onClick={resetFilters}
-                  className="w-full text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600"
+                  className="w-full h-9 text-sm text-gray-700 dark:text-gray-300 border-gray-300 dark:border-slate-600"
                 >
-                  Reset Filters
+                  <X className="w-4 h-4 mr-1" /> Reset
                 </Button>
               </div>
             </div>
