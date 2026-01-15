@@ -200,4 +200,4 @@ Build a "Dharani TVS AI Business Manager," a multi-branch digital command center
 ## Testing Credentials
 - **Session Token**: `ui_test_session_2024`
 - **Test Email**: `test@dharanitvs.com`
-- **Preview URL**: https://tvs-command-hub.preview.emergentagent.com
+- **Preview URL**: https://tvs-biz-manager.preview.emergentagent.com

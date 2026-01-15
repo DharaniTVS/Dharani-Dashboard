@@ -7,7 +7,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://tvs-command-hub.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://tvs-biz-manager.preview.emergentagent.com')
 SESSION_TOKEN = "test_session_5dcd5469df974cdd99a0d938e4b6b3f5"
 
 @pytest.fixture
