@@ -227,46 +227,49 @@ const Sales = ({ user, onLogout }) => {
     <div className="flex bg-gray-50 dark:bg-slate-900 min-h-screen" data-testid="sales-page">
       <Sidebar user={user} onLogout={onLogout} />
       <FloatingAI />
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pt-16 lg:pt-0">
         {/* Header */}
-        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-8 py-5">
-          <div className="flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-8 py-4 lg:py-5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sold Vehicles - {selectedBranch}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">Sold Vehicles - {selectedBranch}</h1>
+              <p className="text-xs lg:text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Completed sales • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
                 {loading && <span className="ml-2 text-indigo-600">Syncing...</span>}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Button 
                 variant="outline" 
-                className="gap-2 text-gray-600"
+                size="sm"
+                className="gap-1 text-gray-600"
                 onClick={fetchData}
                 disabled={loading}
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button 
                 variant="outline" 
-                className="gap-2 text-gray-600"
+                size="sm"
+                className="gap-1 text-gray-600"
                 onClick={() => exportToCSV()}
               >
                 <Download className="w-4 h-4" />
-                CSV
+                <span className="hidden sm:inline">CSV</span>
               </Button>
               <Button 
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700"
+                size="sm"
+                className="gap-1 bg-indigo-600 hover:bg-indigo-700"
                 onClick={() => exportToPDF()}
               >
                 <FileDown className="w-4 h-4" />
-                PDF
+                <span className="hidden sm:inline">PDF</span>
               </Button>
             </div>
           </div>
           {/* Auto-sync indicator */}
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-2 lg:mt-3 flex items-center gap-2">
             <div className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
             <span className="text-xs text-gray-500">
               Auto-sync {autoSyncEnabled ? 'enabled' : 'disabled'} (every 30s)
