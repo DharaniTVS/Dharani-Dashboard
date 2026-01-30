@@ -94,7 +94,9 @@ const GlobalDashboard = ({ user, onLogout }) => {
     let filteredEnquiries = [];
     let filteredBookings = [];
 
-    branches.forEach(branch => {
+    const branchesToProcess = selectedBranch === 'all' ? branches : [selectedBranch];
+
+    branchesToProcess.forEach(branch => {
       let branchSales = allBranchData[branch] || [];
       let branchEnquiries = allEnquiryData[branch] || [];
       let branchBookings = allBookingsData[branch] || [];
