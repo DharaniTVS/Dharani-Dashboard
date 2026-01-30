@@ -55,18 +55,6 @@ const Sidebar = ({ user, onLogout }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1 overflow-y-auto">
-        {/* Overview */}
-        <Link to="/global" data-testid="nav-global">
-          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-            isActive('/global')
-              ? 'bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 font-medium'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}>
-            <Building2 className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span className="text-sm">Overview</span>
-          </div>
-        </Link>
-
         {/* Dashboard */}
         <Link to="/dashboard" data-testid="nav-dashboard">
           <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
