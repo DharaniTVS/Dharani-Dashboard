@@ -244,10 +244,10 @@ const GlobalDashboard = ({ user, onLogout }) => {
 
     doc.setFontSize(16);
     doc.setTextColor(99, 102, 241);
-    doc.text('Dharani TVS - Main Dashboard Report', 20, 15);
+    doc.text('Dharani TVS - Overview Report', 20, 15);
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Generated: ${new Date().toLocaleString()} | Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 22);
+    doc.text(`Generated: ${new Date().toLocaleString()} | Branch: ${selectedBranch === 'all' ? 'All' : selectedBranch} | Date Range: ${startDate || 'All'} to ${endDate || 'All'}`, 20, 22);
 
     // KPI Summary
     autoTable(doc, {
