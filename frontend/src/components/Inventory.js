@@ -6,6 +6,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Package, Search, Download, RefreshCw } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -16,6 +17,7 @@ const Inventory = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('');
+  const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
 
   useEffect(() => {
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
@@ -28,6 +30,12 @@ const Inventory = ({ user, onLogout }) => {
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
+
+  const handleBranchSelect = (branch) => {
+    setSelectedBranch(branch);
+    localStorage.setItem('selectedBranch', branch);
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
+  };
 
   useEffect(() => {
     if (selectedBranch) {
@@ -135,6 +143,29 @@ const Inventory = ({ user, onLogout }) => {
         </div>
 
         <div className="p-8">
+          {/* Branch Selector */}
+          <Card className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700">Select Branch:</label>
+              <Select value={selectedBranch} onValueChange={handleBranchSelect}>
+                <SelectTrigger className="w-48 h-9 text-sm bg-white border-gray-200">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                  {branches.map(branch => (
+                    <SelectItem 
+                      key={branch} 
+                      value={branch}
+                      className="cursor-pointer hover:bg-gray-100"
+                    >
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
           {/* Search */}
           <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div className="flex items-center gap-4">
