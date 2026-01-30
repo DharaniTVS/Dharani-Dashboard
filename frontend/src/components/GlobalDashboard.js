@@ -45,6 +45,12 @@ const GlobalDashboard = ({ user, onLogout }) => {
 
   const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
 
+  const handleBranchSelect = (branch) => {
+    setSelectedBranch(branch);
+    localStorage.setItem('selectedBranch', branch);
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
+  };
+
   const fetchAllBranchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -410,7 +416,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
           <Card className="p-4 bg-white rounded-xl shadow-sm">
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-gray-700">Select Branch:</label>
-              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+              <Select value={selectedBranch} onValueChange={handleBranchSelect}>
                 <SelectTrigger className="w-48 h-9 text-sm bg-white border-gray-200">
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
