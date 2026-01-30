@@ -30,6 +30,8 @@ const Sales = ({ user, onLogout }) => {
   const [drillDownData, setDrillDownData] = useState(null);
   const [drillDownTitle, setDrillDownTitle] = useState('');
 
+  const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
+
   useEffect(() => {
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
     setSelectedBranch(savedBranch);
@@ -44,6 +46,12 @@ const Sales = ({ user, onLogout }) => {
       window.removeEventListener('branchChanged', handleBranchChange);
     };
   }, []);
+
+  const handleBranchSelect = (branch) => {
+    setSelectedBranch(branch);
+    localStorage.setItem('selectedBranch', branch);
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -285,6 +293,29 @@ const Sales = ({ user, onLogout }) => {
         </div>
 
         <div className="p-4 lg:p-8">
+          {/* Branch Selector */}
+          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 mb-4 lg:mb-6">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Branch:</label>
+              <Select value={selectedBranch} onValueChange={handleBranchSelect}>
+                <SelectTrigger className="w-48 h-9 text-sm bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-900 dark:text-white">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 shadow-lg z-[9999]">
+                  {branches.map(branch => (
+                    <SelectItem 
+                      key={branch} 
+                      value={branch}
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-900 dark:text-white"
+                    >
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
           {/* Filters Section */}
           <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 lg:p-6 mb-4 lg:mb-6">
             <div className="flex items-center gap-2 mb-3 lg:mb-4">
