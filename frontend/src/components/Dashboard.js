@@ -69,16 +69,43 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const fetchData = useCallback(async () => {
+    if (!selectedBranch) return;
+    
     setLoading(true);
     try {
-      const [salesRes, enquiryRes, bookingsRes] = await Promise.all([
-        axios.get(`${API}/sheets/sales-data`, { params: { branch: selectedBranch } }),
-        axios.get(`${API}/sheets/enquiry-data`, { params: { branch: selectedBranch } }),
-        axios.get(`${API}/sheets/bookings-data`, { params: { branch: selectedBranch } })
-      ]);
-      setSalesData(salesRes.data.data || []);
-      setEnquiryData(enquiryRes.data.data || []);
-      setBookingsData(bookingsRes.data.data || []);
+      if (selectedBranch === 'all') {
+        // Fetch data from all branches
+        const allBranches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
+        const results = await Promise.all(
+          allBranches.map(async (branch) => {
+            const [salesRes, enquiryRes, bookingsRes] = await Promise.all([
+              axios.get(`${API}/sheets/sales-data`, { params: { branch } }),
+              axios.get(`${API}/sheets/enquiry-data`, { params: { branch } }),
+              axios.get(`${API}/sheets/bookings-data`, { params: { branch } })
+            ]);
+            return {
+              sales: salesRes.data.data || [],
+              enquiry: enquiryRes.data.data || [],
+              bookings: bookingsRes.data.data || []
+            };
+          })
+        );
+        
+        // Combine all data
+        setSalesData(results.flatMap(r => r.sales));
+        setEnquiryData(results.flatMap(r => r.enquiry));
+        setBookingsData(results.flatMap(r => r.bookings));
+      } else {
+        // Fetch data from specific branch
+        const [salesRes, enquiryRes, bookingsRes] = await Promise.all([
+          axios.get(`${API}/sheets/sales-data`, { params: { branch: selectedBranch } }),
+          axios.get(`${API}/sheets/enquiry-data`, { params: { branch: selectedBranch } }),
+          axios.get(`${API}/sheets/bookings-data`, { params: { branch: selectedBranch } })
+        ]);
+        setSalesData(salesRes.data.data || []);
+        setEnquiryData(enquiryRes.data.data || []);
+        setBookingsData(bookingsRes.data.data || []);
+      }
       setLastSync(new Date());
     } catch (error) {
       console.error('Failed to fetch data:', error);
