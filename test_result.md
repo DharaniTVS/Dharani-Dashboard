@@ -102,68 +102,80 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Test the Overview page (formerly Main Dashboard) changes including renaming from 'Main Dashboard' to 'Overview' and adding branch selector functionality"
+user_problem_statement: "Test the new flat sidebar structure and branch selector functionality across all pages with localStorage persistence"
 
 frontend:
-  - task: "Rename Main Dashboard to Overview in sidebar"
+  - task: "Flat sidebar structure (no dropdowns)"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/frontend/src/components/Sidebar.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "Code review confirmed: Line 115 in Sidebar.js shows 'Overview' text correctly implemented in navigation"
+      - working: "NA"
+        agent: "main"
+        comment: "Implemented flat navigation structure removing Sales dropdown. All menu items now at top level: Overview, Enquiry, Bookings, Sales, Service, Inventory, Settings"
 
-  - task: "Rename Main Dashboard to Overview in page header"
+  - task: "Branch selector on Overview page"
     implemented: true
-    working: true
+    working: "NA"
     file: "/app/frontend/src/components/GlobalDashboard.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "Code review confirmed: Line 382 in GlobalDashboard.js shows 'Overview' as page title correctly implemented"
+      - working: "NA"
+        agent: "main"
+        comment: "Branch selector added at top of Overview page with localStorage integration"
 
-  - task: "Add branch selector at top of Overview page"
+  - task: "Branch selector on Enquiry page"
     implemented: true
-    working: true
-    file: "/app/frontend/src/components/GlobalDashboard.js"
+    working: "NA"
+    file: "/app/frontend/src/components/Enquiries.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "Code review confirmed: Lines 409-433 show branch selector with 'Select Branch:' label and dropdown with all expected options including 'All Branches' as default"
+      - working: "NA"
+        agent: "main"
+        comment: "Branch selector added at top of Enquiry page with localStorage persistence"
 
-  - task: "Dynamic subtitle showing selected branch"
+  - task: "Branch selector on Bookings page"
     implemented: true
-    working: true
-    file: "/app/frontend/src/components/GlobalDashboard.js"
+    working: "NA"
+    file: "/app/frontend/src/components/Bookings.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "Code review confirmed: Lines 384-386 show dynamic subtitle that displays selected branch name (e.g., 'All branches • Last sync: ...' or 'Kumarapalayam • Last sync: ...')"
+      - working: "NA"
+        agent: "main"
+        comment: "Branch selector added at top of Bookings page with localStorage persistence"
 
-  - task: "Reset button functionality for branch selector"
+  - task: "Branch selector on Sales page"
     implemented: true
-    working: true
-    file: "/app/frontend/src/components/GlobalDashboard.js"
+    working: "NA"
+    file: "/app/frontend/src/components/Sales.js"
     stuck_count: 0
     priority: "high"
-    needs_retesting: false
+    needs_retesting: true
     status_history:
-      - working: true
-        agent: "testing"
-        comment: "Code review confirmed: Lines 474-487 show Reset button that resets selectedBranch to 'all', startDate/endDate to empty, and calls applyFiltersAndCalculate()"
+      - working: "NA"
+        agent: "main"
+        comment: "Branch selector added at top of Sales page with localStorage persistence"
+
+  - task: "Branch selection persistence across pages"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/components/GlobalDashboard.js, /app/frontend/src/components/Enquiries.js, /app/frontend/src/components/Bookings.js, /app/frontend/src/components/Sales.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "localStorage integration implemented to persist branch selection across all pages with custom event handling"
 
   - task: "Authentication system integration"
     implemented: true
