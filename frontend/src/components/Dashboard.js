@@ -51,7 +51,7 @@ const Dashboard = ({ user, onLogout }) => {
   const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
 
   useEffect(() => {
-    const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
+    const savedBranch = localStorage.getItem('selectedBranch') || 'all';
     setSelectedBranch(savedBranch);
 
     const handleBranchChange = (event) => {
@@ -398,6 +398,9 @@ const Dashboard = ({ user, onLogout }) => {
                   <SelectValue placeholder="Select branch" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                  <SelectItem value="all" className="cursor-pointer hover:bg-gray-100">
+                    All Branch
+                  </SelectItem>
                   {branches.map(branch => (
                     <SelectItem 
                       key={branch} 
