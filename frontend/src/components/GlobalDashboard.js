@@ -381,7 +381,9 @@ const GlobalDashboard = ({ user, onLogout }) => {
                 <Building2 className="w-6 h-6 text-indigo-600" />
                 Overview
               </h1>
-              <p className="text-sm text-gray-500">All branches • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}</p>
+              <p className="text-sm text-gray-500">
+                {selectedBranch === 'all' ? 'All branches' : selectedBranch} • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={fetchAllBranchData} disabled={loading}>
