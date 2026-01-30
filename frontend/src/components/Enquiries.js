@@ -22,6 +22,8 @@ const Enquiries = ({ user, onLogout }) => {
   const [endDate, setEndDate] = useState('');
   const [executives, setExecutives] = useState([]);
 
+  const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
+
   useEffect(() => {
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
     setSelectedBranch(savedBranch);
@@ -33,6 +35,12 @@ const Enquiries = ({ user, onLogout }) => {
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
+
+  const handleBranchSelect = (branch) => {
+    setSelectedBranch(branch);
+    localStorage.setItem('selectedBranch', branch);
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
+  };
 
   useEffect(() => {
     if (selectedBranch) {
@@ -173,6 +181,29 @@ const Enquiries = ({ user, onLogout }) => {
         </div>
 
         <div className="p-8">
+          {/* Branch Selector */}
+          <Card className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700">Select Branch:</label>
+              <Select value={selectedBranch} onValueChange={handleBranchSelect}>
+                <SelectTrigger className="w-48 h-9 text-sm bg-white border-gray-200">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                  {branches.map(branch => (
+                    <SelectItem 
+                      key={branch} 
+                      value={branch}
+                      className="cursor-pointer hover:bg-gray-100"
+                    >
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
           {/* Filters */}
           <Card className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div className="flex items-center gap-2 mb-4">
