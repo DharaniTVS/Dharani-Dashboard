@@ -1,29 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, ChevronDown, ChevronRight, Building2, Menu, X } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { BarChart3, ShoppingCart, Wrench, Package, LogOut, Settings, Building2, Menu, X, FileText, Calendar } from 'lucide-react';
 
 const Sidebar = ({ user, onLogout }) => {
   const location = useLocation();
-  const [selectedBranch, setSelectedBranch] = useState('Kumarapalayam');
-  const [isSalesOpen, setIsSalesOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  const branches = [
-    'Kumarapalayam',
-    'Kavindapadi',
-    'Ammapettai',
-    'Anthiyur',
-    'Bhavani'
-  ];
-
-  useEffect(() => {
-    const savedBranch = localStorage.getItem('selectedBranch');
-    if (savedBranch) {
-      setSelectedBranch(savedBranch);
-    }
-  }, []);
 
   // Close mobile sidebar when route changes
   useEffect(() => {
@@ -31,14 +13,6 @@ const Sidebar = ({ user, onLogout }) => {
   }, [location.pathname]);
 
   const isActive = (path) => location.pathname === path;
-
-  const handleBranchChange = (branch) => {
-    setSelectedBranch(branch);
-    localStorage.setItem('selectedBranch', branch);
-    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
-  };
-
-  const isMainDashboard = location.pathname === '/global';
 
   const SidebarContent = () => (
     <>
@@ -79,29 +53,6 @@ const Sidebar = ({ user, onLogout }) => {
         </div>
       </div>
 
-      {/* Branch Selector - Hide on Main Dashboard */}
-      {!isMainDashboard && (
-        <div className="mx-3 lg:mx-4 mt-3 lg:mt-4" data-testid="branch-selector">
-          <label className="block text-xs font-medium text-gray-500 mb-1.5 px-1">Select Branch</label>
-          <Select value={selectedBranch} onValueChange={handleBranchChange}>
-            <SelectTrigger className="w-full bg-white border-gray-200 text-gray-900 h-9">
-              <SelectValue placeholder="Select branch" />
-            </SelectTrigger>
-            <SelectContent className="bg-white z-[100]">
-              {branches.map(branch => (
-                <SelectItem 
-                  key={branch} 
-                  value={branch}
-                  className="text-gray-900 hover:bg-indigo-50 focus:bg-indigo-100 focus:text-gray-900 cursor-pointer data-[highlighted]:bg-indigo-50 data-[highlighted]:text-gray-900"
-                >
-                  {branch}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       {/* Navigation */}
       <nav className="flex-1 px-3 lg:px-4 py-4 space-y-1 overflow-y-auto">
         {/* Overview */}
@@ -116,65 +67,41 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
-        {/* Sales - Main Menu with Submenu */}
-        <div>
-          <button 
-            onClick={() => setIsSalesOpen(!isSalesOpen)}
-            className={`w-full flex items-center justify-between px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
-              ['/dashboard', '/enquiries', '/bookings', '/'].includes(location.pathname)
-                ? 'bg-indigo-50 text-indigo-700'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-            style={{ cursor: 'pointer' }}
-          >
-            <div className="flex items-center gap-2 lg:gap-3">
-              <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
-              <span className="text-sm font-medium">Sales</span>
-            </div>
-            {isSalesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          </button>
-          
-          {isSalesOpen && (
-            <div className="ml-6 lg:ml-8 mt-1 space-y-1">
-              <Link to="/dashboard" data-testid="nav-dashboard">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/dashboard')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Dashboard
-                </div>
-              </Link>
-              <Link to="/enquiries" data-testid="nav-enquiries">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/enquiries')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Enquiry
-                </div>
-              </Link>
-              <Link to="/bookings" data-testid="nav-bookings">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/bookings')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Bookings
-                </div>
-              </Link>
-              <Link to="/" data-testid="nav-sold">
-                <div className={`px-3 py-1.5 lg:py-2 rounded-lg text-sm transition-all duration-200 ${
-                  isActive('/')
-                    ? 'bg-indigo-100 text-indigo-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                }`}>
-                  Sold
-                </div>
-              </Link>
-            </div>
-          )}
-        </div>
+        {/* Enquiry */}
+        <Link to="/enquiries" data-testid="nav-enquiries">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/enquiries')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <FileText className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Enquiry</span>
+          </div>
+        </Link>
+
+        {/* Bookings */}
+        <Link to="/bookings" data-testid="nav-bookings">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/bookings')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <Calendar className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Bookings</span>
+          </div>
+        </Link>
+
+        {/* Sales (Sold) */}
+        <Link to="/" data-testid="nav-sold">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <ShoppingCart className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Sales</span>
+          </div>
+        </Link>
 
         {/* Service */}
         <Link to="/service" data-testid="nav-service">
