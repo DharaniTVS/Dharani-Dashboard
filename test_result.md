@@ -191,12 +191,17 @@ frontend:
 
 metadata:
   created_by: "testing_agent"
-  version: "1.0"
-  test_sequence: 1
+  version: "2.0"
+  test_sequence: 2
 
 test_plan:
   current_focus:
-    - "Overview page UI testing completed via code review"
+    - "Flat sidebar structure (no dropdowns)"
+    - "Branch selector on Overview page"
+    - "Branch selector on Enquiry page"
+    - "Branch selector on Bookings page"
+    - "Branch selector on Sales page"
+    - "Branch selection persistence across pages"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -204,3 +209,5 @@ test_plan:
 agent_communication:
   - agent: "testing"
     message: "Completed Overview page testing via code review. All requested changes are properly implemented in the code. Authentication testing blocked by external OAuth requirement - this is expected for production apps. UI changes verified through code analysis: 1) Sidebar shows 'Overview' instead of 'Main Dashboard', 2) Page header shows 'Overview', 3) Branch selector added with proper options, 4) Dynamic subtitle updates, 5) Reset button functionality implemented correctly."
+  - agent: "main"
+    message: "Updated navigation structure to flat design and added branch selectors across all pages. Need comprehensive testing of: 1) Flat sidebar navigation, 2) Branch selector functionality on all pages, 3) localStorage persistence across page navigation"
