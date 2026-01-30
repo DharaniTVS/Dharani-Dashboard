@@ -67,6 +67,18 @@ const Sidebar = ({ user, onLogout }) => {
           </div>
         </Link>
 
+        {/* Dashboard */}
+        <Link to="/dashboard" data-testid="nav-dashboard">
+          <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
+            isActive('/dashboard')
+              ? 'bg-indigo-100 text-indigo-700 font-medium'
+              : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+          }`}>
+            <BarChart3 className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm">Dashboard</span>
+          </div>
+        </Link>
+
         {/* Enquiry */}
         <Link to="/enquiries" data-testid="nav-enquiries">
           <div className={`flex items-center gap-2 lg:gap-3 px-3 py-2 lg:py-2.5 rounded-lg transition-all duration-200 ${
