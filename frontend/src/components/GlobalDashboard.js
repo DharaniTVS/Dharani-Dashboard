@@ -474,6 +474,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
               <Button 
                 variant="outline" 
                 onClick={() => {
+                  setSelectedBranch('all');
                   setStartDate('');
                   setEndDate('');
                   setTrendPeriod('daily');
