@@ -333,7 +333,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `all-branches-sales-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `overview-sales-${selectedBranch === 'all' ? 'all-branches' : selectedBranch}-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
