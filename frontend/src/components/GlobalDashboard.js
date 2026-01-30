@@ -308,7 +308,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
       });
     }
 
-    doc.save(`main-dashboard-${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`overview-report-${selectedBranch === 'all' ? 'all-branches' : selectedBranch}-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const exportToCSV = () => {
