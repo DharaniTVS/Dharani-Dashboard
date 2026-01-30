@@ -376,7 +376,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
             <div>
               <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <Building2 className="w-6 h-6 text-indigo-600" />
-                Main Dashboard
+                Overview
               </h1>
               <p className="text-sm text-gray-500">All branches • Last sync: {lastSync ? lastSync.toLocaleTimeString() : 'Never'}</p>
             </div>
