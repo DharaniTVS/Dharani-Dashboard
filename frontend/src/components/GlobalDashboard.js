@@ -404,6 +404,32 @@ const GlobalDashboard = ({ user, onLogout }) => {
         </div>
 
         <div className="p-6 space-y-6">
+          {/* Branch Selector at Top */}
+          <Card className="p-4 bg-white rounded-xl shadow-sm">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700">Select Branch:</label>
+              <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                <SelectTrigger className="w-48 h-9 text-sm bg-white border-gray-200">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg z-[9999]">
+                  <SelectItem value="all" className="cursor-pointer hover:bg-gray-100">
+                    All Branches
+                  </SelectItem>
+                  {branches.map(branch => (
+                    <SelectItem 
+                      key={branch} 
+                      value={branch}
+                      className="cursor-pointer hover:bg-gray-100"
+                    >
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
           {/* Filters Section */}
           <Card className="p-4 bg-white rounded-xl shadow-sm">
             <div className="flex flex-wrap items-end gap-3">
