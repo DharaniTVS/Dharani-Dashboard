@@ -6,6 +6,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Wrench, Upload, FileText, Calendar, Search, Download, RefreshCw, FileDown } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -23,6 +24,7 @@ const Service = ({ user, onLogout }) => {
   const [lastSync, setLastSync] = useState(null);
   const [message, setMessage] = useState({ type: '', text: '' });
   const fileInputRef = useRef(null);
+  const branches = ['Kumarapalayam', 'Kavindapadi', 'Ammapettai', 'Anthiyur', 'Bhavani'];
 
   useEffect(() => {
     const savedBranch = localStorage.getItem('selectedBranch') || 'Kumarapalayam';
@@ -41,6 +43,12 @@ const Service = ({ user, onLogout }) => {
     window.addEventListener('branchChanged', handleBranchChange);
     return () => window.removeEventListener('branchChanged', handleBranchChange);
   }, []);
+
+  const handleBranchSelect = (branch) => {
+    setSelectedBranch(branch);
+    localStorage.setItem('selectedBranch', branch);
+    window.dispatchEvent(new CustomEvent('branchChanged', { detail: branch }));
+  };
 
   const fetchServiceReports = useCallback(async () => {
     setLoading(true);
@@ -255,6 +263,29 @@ const Service = ({ user, onLogout }) => {
         </div>
 
         <div className="p-8">
+          {/* Branch Selector */}
+          <Card className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-4 mb-6">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Select Branch:</label>
+              <Select value={selectedBranch} onValueChange={handleBranchSelect}>
+                <SelectTrigger className="w-48 h-9 text-sm bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-900 dark:text-white">
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 shadow-lg z-[9999]">
+                  {branches.map(branch => (
+                    <SelectItem 
+                      key={branch} 
+                      value={branch}
+                      className="cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-600 text-gray-900 dark:text-white"
+                    >
+                      {branch}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+
           {/* Message */}
           {message.text && (
             <div className={`mb-6 p-4 rounded-lg ${
