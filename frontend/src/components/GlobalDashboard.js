@@ -23,6 +23,7 @@ const GlobalDashboard = ({ user, onLogout }) => {
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
   
   // Filter states
+  const [selectedBranch, setSelectedBranch] = useState('all');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [trendPeriod, setTrendPeriod] = useState('daily');
